@@ -2,7 +2,7 @@
 
 #source "$APP_HOME/setup_database.sh"
 
-export DBNAME="deepdive_kbp_msushkov_0.01"
+export DBNAME="deepdive_kbp_msushkov_large"
 export PGPORT=6432
 export PGHOST=madmax6
 export PGUSER=czhang
