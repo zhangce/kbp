@@ -53,23 +53,35 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 		nerc = ner[i]
 		if nerc in SD['EXT_MENTION_IGNORE_TYPE']:
 			continue
+
 		if nerc in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
 			nerc = "LOCATION"
 
 		if nerc != 'O':
 			j = i
 			for j in range(i, len(words)):
-				if ner[j] != nerc:
+				nerj = ner[j]
+				if nerj in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
+					nerj = "LOCATION"
+				if nerj != nerc:
 					break
+
 			mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[j-1])
 			if i==j:
 				word = words[i]
 				history[i] = 1
+				j=i+1
 			else:
 				word = " ".join(words[i:j])
 				for w in range(i,j):
 					history[w] = 1
-			mentions.append({"doc_id":"doc_id", "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":nerc, "start":i, "end":j})
+			mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":nerc, "start":i, "end":j})
+		else:
+			if words[i].lower() in {'winger':1, 'singer\\/songwriter':1, 'founder':1, 'president':1, 'executive director':1, 'producer':1, 'star':1, 'musician':1, 'nightlife impresario':1, 'lobbyist':1}:
+				history[i] = 1
+				word = words[i]
+				mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
+				mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":'TITLE', "start":i, "end":i+1})
 
 	r = {}
 	try:
@@ -154,7 +166,6 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 					end = deptree[end]["parent"]
 
 				commonroot = None
-
 				for i in range(0, len(path1)):
 					j = len(path1) - 1 - i
 					#plpy.notice(path1[j])  
@@ -172,7 +183,10 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 					if path1[i]["parent"] == commonroot or path1[i]["parent"]==-1:
 						left_path = left_path + ("--" + path1[i]["label"] + "->" + '|')
 					else:
-						left_path = left_path + ("--" + path1[i]["label"] + "->" + lemma[path1[i]["parent"]].lower())
+						w = lemma[path1[i]["parent"]].lower()
+						if i == 0: 
+							w = ""
+						left_path = left_path + ("--" + path1[i]["label"] + "->" + w)
 				
 				right_path = ""
 				rct = 0
@@ -183,7 +197,10 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 					if path2[i]["parent"] == commonroot or path2[i]["parent"]==-1:
 						right_path = ('|' + "<-" + path2[i]["label"] + "--") + right_path
 					else:
-						right_path = (lemma[path2[i]["parent"]].lower() + "<-" + path2[i]["label"] + "--" ) + right_path
+						w = lemma[path2[i]["parent"]].lower()
+						if i == 0:
+							w = ""
+						right_path = (w + "<-" + path2[i]["label"] + "--" ) + right_path
 
 				path = ""
 				if commonroot == end1-1 or commonroot == end2-1:

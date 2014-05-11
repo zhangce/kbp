@@ -76,6 +76,7 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 					break
 			mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[j-1])
 			if i==j:
+				j=i+1
 				word = words[i]
 				history[i] = 1
 			else:
@@ -83,6 +84,12 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 				for w in range(i,j):
 					history[w] = 1
 			yield {"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":nerc}
+		else:
+			if words[i].lower() in {'winger':1, 'singer\\/songwriter':1, 'founder':1, 'president':1, 'executive director':1, 'producer':1, 'star':1, 'musician':1, 'nightlife impresario':1, 'lobbyist':1}:
+				history[i] = 1
+				word = words[i]
+				mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
+				yield {"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":'TITLE'}
 
 
 
