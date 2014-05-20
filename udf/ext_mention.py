@@ -3,7 +3,7 @@
 import ddext
 
 # >> doc_id, words, pos, ner, lemma, character_offset_begin, character_offset_end
-# << doc_id text, mention_id text, sentence_id text, word text, type text
+# << doc_id text, mention_id text, sentence_id text, word text, type text, start integer, end integer
 def init():
 	ddext.input('doc_id', 'text')
 	ddext.input('sentence_id', 'text')
@@ -20,7 +20,7 @@ def init():
 	ddext.returns('word', 'text')
 	ddext.returns('type', 'text')
 	ddext.returns('start', 'integer')
-	ddext.returns('end', 'integer')
+	ddext.returns('\"end\"', 'integer')
 
 
 def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end):

@@ -2,7 +2,7 @@
 
 import sys, json
 
-f = open(sys.argv[1], 'w')
+f = open('/lfs/local/0/msushkov/deepdive/app/kbp/udf/string_library_test.json', 'a')
 
 for row in sys.stdin:
 	f.write(row)

@@ -1,84 +1,39 @@
 #! /usr/bin/env python
 
+import sys
+sys.path.append("/lfs/local/0/msushkov/deepdive/ddlib")
+
 import re
 import sys, json
+from lib import dd
 
 SD = {}
 
 for row in sys.stdin:
-	print row
+	obj = json.loads(row)
 
-	# obj = json.loads(row)
+	doc_id = obj['doc_id']
+	sentence_id = obj['sentence_id']
+	dep_graph = obj['dep_graph']
+	lemma = obj['lemma']
 
-	# TODO: zip and map
+	mention_ids = obj['mention_ids']
+	words = obj['words']
+	types = obj['types']
+	starts = obj['starts']
+	ends = obj['ends']
 
-	# doc_id = obj['doc_id']
-	# sentence_id = obj['sentence_id']
-	# words = obj['words']
-	# pos = obj['pos']
-	# ner = obj['ner']
-	# lemma = obj['lemma']
-	# character_offset_begin = obj['character_offset_begin']
-	# character_offset_end = obj['character_offset_end']
-	# dep_graph = obj['dep_graph']
-	# run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end, dep_graph)
+	mentions = zip(mention_ids, words, types, starts, ends)
+	mentions = map(lambda x: {"mention_id" : x[0], "word" : x[1], "type" : x[2], "start" : x[3], "end" : x[4]}, mentions)
 
-
-def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end, dep_graph):
-	if 'EXT_MENTION_IGNORE_TYPE' not in SD:
-		SD['EXT_MENTION_IGNORE_TYPE'] = {"URL": 1, "NUMBER" : 1, "MISC" : 1, "CAUSE_OF_DEATH":1, "CRIMINAL_CHARGE":1, 
-		"DURATION":1, "MONEY":1, "ORDINAL" :1, "RELIGION":1, "SET": 1, "TIME":1}
-
-	#if 'EXT_RELATION_MENTION_FEATURE_WORDSEQ' not in SD:
-	#	SD['EXT_RELATION_MENTION_FEATURE_WORDSEQ'] = 
-
-	history = {}
-	mentions = []
-	
-	for i in range(0, len(words)):
-		if i in history: continue
-		beginc = character_offset_begin[i]
-		endc = character_offset_end[i]
-		nerc = ner[i]
-		if nerc in SD['EXT_MENTION_IGNORE_TYPE']:
-			continue
-
-		if nerc in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
-			nerc = "LOCATION"
-
-		if nerc != 'O':
-			j = i
-			for j in range(i, len(words)):
-				nerj = ner[j]
-				if nerj in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
-					nerj = "LOCATION"
-				if nerj != nerc:
-					break
-
-			mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[j-1])
-			if i==j:
-				word = words[i]
-				history[i] = 1
-				j=i+1
-			else:
-				word = " ".join(words[i:j])
-				for w in range(i,j):
-					history[w] = 1
-			mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":nerc, "start":i, "end":j})
-		else:
-			if words[i].lower() in {'winger':1, 'singer\\/songwriter':1, 'founder':1, 'president':1, 'executive director':1, 'producer':1, 'star':1, 'musician':1, 'nightlife impresario':1, 'lobbyist':1}:
-				history[i] = 1
-				word = words[i]
-				mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
-				mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":'TITLE', "start":i, "end":i+1})
 
 	# at this point we have a list of the mentions in this sentence
 
 	if len(mentions) > 20:
-		return
+		break
 
 	if len(words) > 100:
-		return
+		break
 
 	deptree = {}
 	r = {}
@@ -95,15 +50,6 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 	if len(r) == 1:
 		deptree = {}
 
-	prefix = ""
-	start1 = ""
-	start2 = ""
-	end1 = ""
-	end2 = ""
-	actstart = ""
-	actend = ""
-	feature = ""
-
 
 	for m1 in mentions:
 		start1 = m1["start"]
@@ -116,18 +62,22 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 			if m1["mention_id"] == m2["mention_id"]:
 				continue
 
-			features = []
 			start2 = m2["start"]
 			end2 = m2["end"]
 
-			prefix = ""
-			if start1 > start2:
-				prefix = "INV:"
-			actend = max(start1, start2)
-			actstart = min(end1, end2)
-			feature = "WORDSEQ_" + prefix + "_".join(lemma[actstart:actend]).lower()
+			features = []
 
+			span1 = dd.Span(begin_word_id=start1, length=end1 - start1)
+			span2 = dd.Span(begin_word_id=start2, length=end2 - start2)
+
+			lemma_between = dd.tokens_between_spans(lemma, span1, span2)
+			if lemma_between.is_inversed:
+				feature = "WORDSEQ_INV:" + "_".join(lemma_between.elements).lower()
+			else:
+				feature = "WORDSEQ_" + "_".join(lemma_between.elements).lower()
 			features.append(feature)
+
+
 
 			if len(deptree) > 0:
 				path1 = []
@@ -159,8 +109,6 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 				commonroot = None
 				for i in range(0, len(path1)):
 					j = len(path1) - 1 - i
-					#plpy.notice(path1[j])  
-					#plpy.notice(path2[-i-1])  
 					if -i-1 <= -len(path2) or path1[j]["current"] != path2[-i-1]["current"]:
 						break
 					commonroot = path1[j]["current"]
