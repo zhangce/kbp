@@ -2,10 +2,10 @@
 
 #source "$APP_HOME/setup_database.sh"
 
-export DBNAME="deepdive_kbp_msushkov_large"
-export PGPORT=6432
-export PGHOST=madmax6
-export PGUSER=czhang
+#export DBNAME="deepdive_kbp_msushkov_large"
+#export PGPORT=6432
+#export PGHOST=madmax6
+#export PGUSER=czhang
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/dfs/rulk/0/hazy_share/lib64/:/dfs/rulk/0/hazy_share/lib/protobuf/lib/:/dfs/rulk/0/hazy_share/lib/tclap/lib/"
 
 
@@ -17,9 +17,9 @@ else
 fi
 
 
-mv /lfs/madmax6/0/czhang/grounding4 /lfs/madmax6/0/czhang/grounding4_`date +"%T"`
-mkdir /lfs/madmax6/0/czhang/grounding4
-cd $DEEPDIVE_HOME
+#mv /lfs/madmax6/0/czhang/grounding4 /lfs/madmax6/0/czhang/grounding4_`date +"%T"`
+#mkdir /lfs/madmax6/0/czhang/grounding4
+#cd $DEEPDIVE_HOME
 env $DEEPDIVE_HOME/sbt/sbt "run -c $APP_HOME/application.conf"
 
 # # remove the results file for evaluation

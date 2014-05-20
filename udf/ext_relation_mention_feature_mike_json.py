@@ -1,30 +1,27 @@
 #! /usr/bin/env python
 
-import ddext
 import re
+import sys, json
 
-# >> doc_id, words, pos, ner, lemma, character_offset_begin, character_offset_end
-# << doc_id text, mention_id text, sentence_id text, word text, type text
-def init():
+SD = {}
 
-	ddext.input('doc_id', 'text')
-	ddext.input('sentence_id', 'text')
-	ddext.input('words', 'text[]')
-	ddext.input('pos', 'text[]')
-	ddext.input('ner', 'text[]')
-	ddext.input('lemma', 'text[]')
-	ddext.input('character_offset_begin', 'integer[]')
-	ddext.input('character_offset_end', 'integer[]')
-	ddext.input('dep_graph', 'text[]')
+for row in sys.stdin:
+	print row
 
-	ddext.returns('doc_id', 'text')
-	ddext.returns('mid1', 'text')
-	ddext.returns('mid2', 'text')
-	ddext.returns('word1', 'text')
-	ddext.returns('word2', 'text')
-	ddext.returns('type1', 'text')
-	ddext.returns('type2', 'text')
-	ddext.returns('features', 'text[]')
+	# obj = json.loads(row)
+
+	# TODO: zip and map
+
+	# doc_id = obj['doc_id']
+	# sentence_id = obj['sentence_id']
+	# words = obj['words']
+	# pos = obj['pos']
+	# ner = obj['ner']
+	# lemma = obj['lemma']
+	# character_offset_begin = obj['character_offset_begin']
+	# character_offset_end = obj['character_offset_end']
+	# dep_graph = obj['dep_graph']
+	# run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end, dep_graph)
 
 
 def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end, dep_graph):
@@ -75,8 +72,17 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 				mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
 				mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":'TITLE', "start":i, "end":i+1})
 
+	# at this point we have a list of the mentions in this sentence
+
+	if len(mentions) > 20:
+		return
+
+	if len(words) > 100:
+		return
+
 	deptree = {}
 	r = {}
+	
 	try:
 		for edge in dep_graph:
 			edge = re.sub('\s+', ' ', edge)
@@ -85,19 +91,9 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 			r[int(parent)-1] = 1
 	except:
 		WHY55555555 = True
+
 	if len(r) == 1:
 		deptree = {}
-
-	#plpy.info("------------------------" + (len(r).__repr__()))
-	#plpy.info("------------------------" + (r.__repr__()))
-	#plpy.info("------------------------" + (deptree.__repr__()))
-
-
-	if len(mentions) > 20:
-		return
-
-	if len(words) > 100:
-		return
 
 	prefix = ""
 	start1 = ""
@@ -107,6 +103,8 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 	actstart = ""
 	actend = ""
 	feature = ""
+
+
 	for m1 in mentions:
 		start1 = m1["start"]
 		end1 = m1["end"]
@@ -209,7 +207,7 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 				if 'wife' in path or 'widow' in path or 'husband' in path:
 					features.append('LEN_%d_wife/widow/husband' % (lct + rct))
 
-			yield {"doc_id":doc_id, "mid1": m1["mention_id"], "mid2": m2["mention_id"], "word1": m1["word"], "word2": m2["word"], "features":features, "type1":m1["type"], "type2":m2["type"]}
+			print json.dumps( {"doc_id":doc_id, "mid1": m1["mention_id"], "mid2": m2["mention_id"], "word1": m1["word"], "word2": m2["word"], "features":features, "type1":m1["type"], "type2":m2["type"]} )
 
 
 
