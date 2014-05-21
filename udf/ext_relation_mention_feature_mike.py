@@ -3,33 +3,46 @@
 import sys
 sys.path.append("/lfs/local/0/msushkov/deepdive/ddlib")
 
-import re
-import sys, json
+import re, json
 from lib import dd
+import ddext
 
-SD = {}
 
 def dep_format_parser(s):
 	parent, label, child = s.split('\t')
 	return (int(parent) - 1, label, int(child) - 1)
 
-for row in sys.stdin:
-	obj = json.loads(row)
 
-	doc_id = obj['doc_id']
-	sentence_id = obj['sentence_id']
-	dep_graph = obj['dep_graph']
-	lemma = obj['lemma']
-	words = obj['words']
+def init():
+	ddext.input('doc_id', 'text')
+	ddext.input('sentence_id', 'text')
+	ddext.input('lemma', 'text[]')
+	ddext.input('dep_graph', 'text[]')
+	ddext.input('words', 'text[]')
+	ddext.input('pos', 'text[]')
+	ddext.input('ner', 'text[]')
+	ddext.input('character_offset_begin', 'integer[]')
+	ddext.input('character_offset_end', 'integer[]')
+	ddext.input('mention_ids', 'text[]')
+	ddext.input('mention_words', 'text[]')
+	ddext.input('types', 'text[]')
+	ddext.input('starts', 'integer[]')
+	ddext.input('ends', 'integer[]')
 
-	sent_words = words
+	ddext.returns('doc_id', 'text')
+	ddext.returns('mid1', 'text')
+	ddext.returns('mid2', 'text')
+	ddext.returns('word1', 'text')
+	ddext.returns('word2', 'text')
+	ddext.returns('type1', 'text')
+	ddext.returns('type2', 'text')
+	ddext.returns('features', 'text[]')
 
-	mention_ids = obj['mention_ids']
-	mention_words = obj['mention_words']
-	types = obj['types']
-	starts = obj['starts']
-	ends = obj['ends']
 
+def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset_begin, \
+	    character_offset_end, mention_ids, mention_words, types, starts, ends):
+	
+	# create a list of mentions
 	mentions = zip(mention_ids, mention_words, types, starts, ends)
 	mentions = map(lambda x: {"mention_id" : x[0], "word" : x[1], "type" : x[2], "start" : x[3], "end" : x[4]}, mentions)
 
@@ -39,15 +52,13 @@ for row in sys.stdin:
 	if len(lemma) > 100:
 		break
 
-
 	# list of Word objects
 	words = dd.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
 		dep_graph_parser=dep_format_parser)
 
-
 	# at this point we have a list of the mentions in this sentence
 
-
+	# go through all pairs of mentions
 	for m1 in mentions:
 		start1 = m1["start"]
 		end1 = m1["end"]
@@ -170,12 +181,7 @@ for row in sys.stdin:
 				if 'wife' in path or 'widow' in path or 'husband' in path:
 					features.append('LEN_%d_wife/widow/husband' % (num_left + num_right))
 
-				print sent_words
-				print edges
-				print features
-				print "============="
-
-			#print json.dumps( {"doc_id":doc_id, "mid1": m1["mention_id"], "mid2": m2["mention_id"], "word1": m1["word"], "word2": m2["word"], "features":features, "type1":m1["type"], "type2":m2["type"]} )
+			yield {"doc_id":doc_id, "mid1": m1["mention_id"], "mid2": m2["mention_id"], "word1": m1["word"], "word2": m2["word"], "features":features, "type1":m1["type"], "type2":m2["type"]}
 
 
 
