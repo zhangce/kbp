@@ -73,6 +73,11 @@ def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset
         return
 
     # list of Word objects
+    obj = {}
+    obj['lemma'] = lemma
+    obj['words'] = words
+    obj['dep_graph'] = dep_graph
+    
     words = ddlib.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
         dep_graph_parser=dep_format_parser)
 
