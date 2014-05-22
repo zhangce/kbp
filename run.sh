@@ -1,5 +1,9 @@
 #! /bin/bash
 
+export APP_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export DEEPDIVE_HOME="$( cd $APP_HOME && cd ../..  && pwd )"
+
+source "$APP_HOME/env.sh"
 source "$APP_HOME/env_db.sh"
 
 if [ -f $DEEPDIVE_HOME/sbt/sbt ]; then
