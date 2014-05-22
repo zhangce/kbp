@@ -20,3 +20,27 @@ To run DeepDive (only this step needs to be re-run during development) - this al
 ```
 >> ./run.sh
 ```
+
+Overview
+----
+
+The 
+
+The KBP application contains a number of extractors and a single inference rule.
+
+There are several types of extractors:
+- Entity mention extractor (ext_mention)
+- Relation mention feature extractor (ext_relation_mention_feature)
+- Coreference candidate extractor (ext_coref_candidate)
+- Entity linking feature extractors (starts with ext_el_feature_extstr_person and ends with ext_el_feature_coref)
+- Extractors that generate positive (ext_relation_mention_positive) and negative (ext_relation_mention_negative) training examples for relation mentions
+- Relation mention extractor (ext_relation_mention)
+
+Extractors
+----
+
+ext_mention
+--
+
+
+The inference rule (relation_mention_lr) simply uses the features
