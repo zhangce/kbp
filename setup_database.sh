@@ -1,6 +1,6 @@
 #! /bin/bash
 
-source $APP_HOME/env_db.sh
+source "$APP_HOME/env_db.sh"
 
 dropdb $DBNAME
 createdb $DBNAME
