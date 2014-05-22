@@ -1,21 +1,52 @@
 #! /usr/bin/env python
 
 import ddext
-import re
 
-# >> doc_id, words, pos, ner, lemma, character_offset_begin, character_offset_end
-# << doc_id text, mention_id text, sentence_id text, word text, type text
+"""
+Extractor for relation mention features.
+
+Outputs 3 features for each relation mention:
+    - the word sequence between the mentions
+    - the dependency path for the sentence fragment containing the relation mention
+    - the presence of the words "wife", "widow", or "husband" along the dependency path
+      (this should help with the spouse relation)
+
+(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
+"""
+
+
+def dep_format_parser(dep_edge_str):
+	"""Given a string representing a dependency edge, return a tuple of
+	   (parent_index, edge_label, child_index).
+
+	Args: dep_edge_str - a string representation of an edge in the dependency tree
+	                     (e.g. "31\tprep_of\t33")
+
+    Returns: tuple of (integer, string, integer) (e.g. (30, "prep_of", 32))
+	"""
+	parent, label, child = dep_edge_str.split('\t')
+
+	# input edge used 1-based indexing
+	return (int(parent) - 1, label, int(child) - 1)
+
+
 def init():
+	ddext.import_lib('sys')
 
 	ddext.input('doc_id', 'text')
 	ddext.input('sentence_id', 'text')
+	ddext.input('lemma', 'text[]')
+	ddext.input('dep_graph', 'text[]')
 	ddext.input('words', 'text[]')
 	ddext.input('pos', 'text[]')
 	ddext.input('ner', 'text[]')
-	ddext.input('lemma', 'text[]')
 	ddext.input('character_offset_begin', 'integer[]')
 	ddext.input('character_offset_end', 'integer[]')
-	ddext.input('dep_graph', 'text[]')
+	ddext.input('mention_ids', 'text[]')
+	ddext.input('mention_words', 'text[]')
+	ddext.input('types', 'text[]')
+	ddext.input('starts', 'integer[]')
+	ddext.input('ends', 'integer[]')
 
 	ddext.returns('doc_id', 'text')
 	ddext.returns('mid1', 'text')
@@ -27,86 +58,32 @@ def init():
 	ddext.returns('features', 'text[]')
 
 
-def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end, dep_graph):
-	if 'EXT_MENTION_IGNORE_TYPE' not in SD:
-		SD['EXT_MENTION_IGNORE_TYPE'] = {"URL": 1, "NUMBER" : 1, "MISC" : 1, "CAUSE_OF_DEATH":1, "CRIMINAL_CHARGE":1, 
-		"DURATION":1, "MONEY":1, "ORDINAL" :1, "RELIGION":1, "SET": 1, "TIME":1}
+def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset_begin, \
+	    character_offset_end, mention_ids, mention_words, types, starts, ends):
+	if 'ddlib' in SD:
+		ddlib = SD['ddlib']
+	else: 
+		# change this as needed to the local path to DeepDive's ddlib directory
+		# (MUST be accessible from the database server)
+		sys.path.append("/dfs/rulk/0/msushkov/shared/ddlib")
+		from lib import dd as ddlib
+		SD['ddlib'] = ddlib
 
-	#if 'EXT_RELATION_MENTION_FEATURE_WORDSEQ' not in SD:
-	#	SD['EXT_RELATION_MENTION_FEATURE_WORDSEQ'] = 
+	# create a list of mentions
+	mentions = zip(mention_ids, mention_words, types, starts, ends)
+	mentions = map(lambda x: {"mention_id" : x[0], "word" : x[1], "type" : x[2], "start" : x[3], "end" : x[4]}, mentions)
 
-	history = {}
-	mentions = []
-	
-	for i in range(0, len(words)):
-		if i in history: continue
-		beginc = character_offset_begin[i]
-		endc = character_offset_end[i]
-		nerc = ner[i]
-		if nerc in SD['EXT_MENTION_IGNORE_TYPE']:
-			continue
-
-		if nerc in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
-			nerc = "LOCATION"
-
-		if nerc != 'O':
-			j = i
-			for j in range(i, len(words)):
-				nerj = ner[j]
-				if nerj in ["CITY", "COUNTRY", "STATE_OR_PROVINCE"]:
-					nerj = "LOCATION"
-				if nerj != nerc:
-					break
-
-			mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[j-1])
-			if i==j:
-				word = words[i]
-				history[i] = 1
-				j=i+1
-			else:
-				word = " ".join(words[i:j])
-				for w in range(i,j):
-					history[w] = 1
-			mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":nerc, "start":i, "end":j})
-		else:
-			if words[i].lower() in {'winger':1, 'singer\\/songwriter':1, 'founder':1, 'president':1, 'executive director':1, 'producer':1, 'star':1, 'musician':1, 'nightlife impresario':1, 'lobbyist':1}:
-				history[i] = 1
-				word = words[i]
-				mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
-				mentions.append({"doc_id":doc_id, "mention_id":mention_id, "sentence_id":sentence_id, "word":word.lower(), "type":'TITLE', "start":i, "end":i+1})
-
-	deptree = {}
-	r = {}
-	try:
-		for edge in dep_graph:
-			edge = re.sub('\s+', ' ', edge)
-			(parent, label, child) = edge.split(' ') 
-			deptree[int(child)-1] = {"label":label, "parent":int(parent)-1}
-			r[int(parent)-1] = 1
-	except:
-		WHY55555555 = True
-	if len(r) == 1:
-		deptree = {}
-
-	#plpy.info("------------------------" + (len(r).__repr__()))
-	#plpy.info("------------------------" + (r.__repr__()))
-	#plpy.info("------------------------" + (deptree.__repr__()))
-
-
-	if len(mentions) > 20:
+	# don't output features for sentences that are too long
+	if len(mentions) > 20 or len(lemma) > 100:
 		return
 
-	if len(words) > 100:
-		return
+	# list of Word objects
+	words = ddlib.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
+		dep_graph_parser=dep_format_parser)
 
-	prefix = ""
-	start1 = ""
-	start2 = ""
-	end1 = ""
-	end2 = ""
-	actstart = ""
-	actend = ""
-	feature = ""
+	# at this point we have a list of the mentions in this sentence
+
+	# go through all pairs of mentions
 	for m1 in mentions:
 		start1 = m1["start"]
 		end1 = m1["end"]
@@ -118,102 +95,112 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
 			if m1["mention_id"] == m2["mention_id"]:
 				continue
 
-			features = []
 			start2 = m2["start"]
 			end2 = m2["end"]
 
-			prefix = ""
-			if start1 > start2:
-				prefix = "INV:"
-			actend = max(start1, start2)
-			actstart = min(end1, end2)
-			feature = "WORDSEQ_" + prefix + "_".join(lemma[actstart:actend]).lower()
+			features = []
+
+			#
+			# word sequence feature
+			#
+
+			# the spans of the mentions
+			span1 = ddlib.Span(begin_word_id=start1, length=end1 - start1)
+			span2 = ddlib.Span(begin_word_id=start2, length=end2 - start2)
+
+			# the lemma sequence between the mention spans
+			lemma_between = ddlib.tokens_between_spans(lemma, span1, span2)
+			if lemma_between.is_inversed:
+				feature = "WORDSEQ_INV:" + "_".join(lemma_between.elements).lower()
+			else:
+			    feature = "WORDSEQ_" + "_".join(lemma_between.elements).lower()
 
 			features.append(feature)
 
-			if len(deptree) > 0:
-				path1 = []
-				end = end1 - 1
-				ct = 0
-				while True:
-					ct = ct + 1
-					if ct > 100:
-						break
-					if end not in deptree:
-						path1.append({"current":end, "parent": -1, "label":"ROOT"})
-						break
-					path1.append({"current":end, "parent": deptree[end]["parent"], "label":deptree[end]["label"]})
-					end = deptree[end]["parent"]
 
-				path2 = []
-				end = end2 - 1
-				ct = 0
-				while True:
-					ct = ct + 1
-					if ct > 100:
-						break
-					if end not in deptree:
-						path2.append({"current":end, "parent": -1, "label":"ROOT"})
-						break
-					path2.append({"current":end, "parent": deptree[end]["parent"], "label":deptree[end]["label"]})
-					end = deptree[end]["parent"]
+			#
+			# dependency path feature
+			#
 
-				commonroot = None
-				for i in range(0, len(path1)):
-					j = len(path1) - 1 - i
-					#plpy.notice(path1[j])  
-					#plpy.notice(path2[-i-1])  
-					if -i-1 <= -len(path2) or path1[j]["current"] != path2[-i-1]["current"]:
-						break
-					commonroot = path1[j]["current"]
+			# list of DepEdge objects representing the dependency path
+			edges = ddlib.dep_path_between_words(words, end1 - 1, end2 - 1)
 
-				left_path = ""
-				lct = 0
-				for i in range(0, len(path1)):
-					lct = lct + 1
-					if path1[i]["current"] == commonroot:
+			if len(edges) > 0:
+				num_roots = 0 # the number of root nodes
+				num_left = 0 # the number of edges to the left of the root
+				num_right = 0 # the number of edges to the right of the root
+				left_path = "" # the dependency path to the left of the root
+				right_path = "" # the dependency path to the right of the root
+
+				# find the index of the switch from up to down
+				switch_direction_index = -1
+				for i in range(len(edges)):
+					if not edges[i].is_bottom_up:
+						switch_direction_index = i
 						break
-					if path1[i]["parent"] == commonroot or path1[i]["parent"]==-1:
-						left_path = left_path + ("--" + path1[i]["label"] + "->" + '|')
-					else:
-						w = lemma[path1[i]["parent"]].lower()
-						if i == 0: 
-							w = ""
-						left_path = left_path + ("--" + path1[i]["label"] + "->" + w)
 				
-				right_path = ""
-				rct = 0
-				for i in range(0, len(path2)):
-					rct = rct + 1
-					if path2[i]["current"] == commonroot:
-						break
-					if path2[i]["parent"] == commonroot or path2[i]["parent"]==-1:
-						right_path = ('|' + "<-" + path2[i]["label"] + "--") + right_path
-					else:
-						w = lemma[path2[i]["parent"]].lower()
-						if i == 0:
-							w = ""
-						right_path = (w + "<-" + path2[i]["label"] + "--" ) + right_path
+				# iterate through the edge list
+				for i in range(len(edges)):
+					curr_edge = edges[i]
 
-				path = ""
-				if commonroot == end1-1 or commonroot == end2-1:
-					path = left_path + "SAMEPATH" + right_path
-				else:
-					if commonroot != None:
-						path = left_path + lemma[commonroot].lower() + right_path
+					# count the number of roots; if there are more than 1 root then our dependency
+					# path is disconnected
+					if curr_edge.label == 'ROOT':
+						num_roots += 1
+
+					# going from the left to the root
+					if curr_edge.is_bottom_up:
+						num_left += 1
+
+						# if this is the edge pointing to the root (word2 is the root)
+						if i == switch_direction_index - 1:
+							left_path = left_path + ("--" + curr_edge.label + "->")
+							root = curr_edge.word2.lemma.lower()
+
+						# this edge does not point to the root
+						else:
+							# if we are at the last edge, don't include the word (part of the mention)
+							if i == len(edges) - 1:
+								left_path = left_path + ("--" + curr_edge.label + "->")
+							else:
+								left_path = left_path + ("--" + curr_edge.label + "->" + curr_edge.word2.lemma.lower())
+					
+					# going from the root to the right
 					else:
-						path = left_path + "NONEROOT" + right_path
-				if path != "":
-					features.append(path)
+						num_right += 1
+
+						# the first edge to the right of the root
+						if i == switch_direction_index:
+							right_path = right_path + "<-" + curr_edge.label + "--"
+
+						# this edge does not point from the root
+						else:
+							# if we are at the first edge, don't include the word (part of the mention)
+							if i == 0:
+								right_path = right_path + ("<-" + curr_edge.label + "--")
+							else:
+								# word1 is the parent for right to left
+								right_path = right_path + (curr_edge.word1.lemma.lower() + "<-" + curr_edge.label + "--")
+				
+				# if the root is at the end or at the beginning (direction was all up or all down)
+				if num_right == 0:
+					root = "|SAMEPATH"
+				elif num_left == 0:
+					root = "SAMEPATH|"
+
+				# if the edges have a disconnect
+				elif num_roots > 1:
+					root = "|NONEROOT|"
+
+				# this is a normal tree with a connected root in the middle
+				else:
+					root = "|" + root + "|"
+
+				path = left_path + root + right_path
+				features.append(path)
 
 				if 'wife' in path or 'widow' in path or 'husband' in path:
-					features.append('LEN_%d_wife/widow/husband' % (lct + rct))
+					features.append('LEN_%d_wife/widow/husband' % (num_left + num_right))
 
 			yield {"doc_id":doc_id, "mid1": m1["mention_id"], "mid2": m2["mention_id"], "word1": m1["word"], "word2": m2["word"], "features":features, "type1":m1["type"], "type2":m2["type"]}
-
-
-
-
-
-
 
