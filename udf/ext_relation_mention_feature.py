@@ -2,19 +2,6 @@
 
 import ddext
 
-"""
-Extractor for relation mention features.
-
-Outputs 3 features for each relation mention:
-    - the word sequence between the mentions
-    - the dependency path for the sentence fragment containing the relation mention
-    - the presence of the words "wife", "widow", or "husband" along the dependency path
-      (this should help with the spouse relation)
-
-(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
-"""
-
-
 def dep_format_parser(dep_edge_str):
 	"""Given a string representing a dependency edge, return a tuple of
 	   (parent_index, edge_label, child_index).
@@ -31,6 +18,18 @@ def dep_format_parser(dep_edge_str):
 
 
 def init():
+	"""
+	Extractor for relation mention features.
+
+	Outputs 3 features for each relation mention:
+	    - the word sequence between the mentions
+	    - the dependency path for the sentence fragment containing the relation mention
+	    - the presence of the words "wife", "widow", or "husband" along the dependency path
+	      (this should help with the spouse relation)
+
+	(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
+	"""
+	
 	ddext.import_lib('sys')
 
 	ddext.input('doc_id', 'text')
