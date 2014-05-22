@@ -2,21 +2,6 @@
 
 import ddext
 
-def dep_format_parser(dep_edge_str):
-	# Given a string representing a dependency edge, return a tuple of
-	#    (parent_index, edge_label, child_index).
-
-	# Args: dep_edge_str - a string representation of an edge in the dependency tree
-	#                      (e.g. "31\tprep_of\t33")
-
- #    Returns: tuple of (integer, string, integer) (e.g. (30, "prep_of", 32))
-	
-	parent, label, child = dep_edge_str.split('\t')
-
-	# input edge used 1-based indexing
-	return (int(parent) - 1, label, int(child) - 1)
-
-
 def init():
 	ddext.import_lib('sys')
 
@@ -47,17 +32,29 @@ def init():
 
 def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset_begin, \
 	    character_offset_end, mention_ids, mention_words, types, starts, ends):
-	
-	# Extractor for relation mention features.
+	"""
+	Extractor for relation mention features.
 
-	# Outputs 3 features for each relation mention:
-	#     - the word sequence between the mentions
-	#     - the dependency path for the sentence fragment containing the relation mention
-	#     - the presence of the words "wife", "widow", or "husband" along the dependency path
-	#       (this should help with the spouse relation)
+	Outputs 3 features for each relation mention:
+	    - the word sequence between the mentions
+	    - the dependency path for the sentence fragment containing the relation mention
+	    - the presence of the words "wife", "widow", or "husband" along the dependency path
+	      (this should help with the spouse relation)
 
-	# (refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
-	
+	(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
+	"""
+
+	def dep_format_parser(dep_edge_str):
+		"""
+		Given a string representing a dependency edge, return a tuple of
+		   (parent_index, edge_label, child_index).
+		Args: dep_edge_str - a string representation of an edge in the dependency tree
+		                     (e.g. "31\tprep_of\t33")
+	    Returns: tuple of (integer, string, integer) (e.g. (30, "prep_of", 32))
+		"""
+		parent, label, child = dep_edge_str.split('\t')
+		return (int(parent) - 1, label, int(child) - 1) # input edge used 1-based indexing
+
 
 	if 'ddlib' in SD:
 		ddlib = SD['ddlib']
