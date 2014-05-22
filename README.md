@@ -4,6 +4,103 @@ KBP
 This application is for the slot filling task of the 
 [TAC KBP competition](http://www.nist.gov/tac/2014/KBP/).
 
+
+## Installation of DeepDive
+
+To use this code, you need to install DeepDive first. 
+We assume that you have already finish the 
+[walkthrough](http://deepdive.stanford.edu/doc/walkthrough.html).
+That is, you already have a folder called "app", that contains
+a "spouse" folder.
+
+## Run KBP Application
+
+First, go to the folder "app" (same folder as you use in the walkthrough), 
+clone this repositary, and switch to the correct branch.
+
+    Ces-MacBook-Pro:app czhang$ git clone https://github.com/zhangce/kbp.git
+    Ces-MacBook-Pro:app czhang$ cd kbp
+    Ces-MacBook-Pro:kbp czhang$ git checkout mike-ce-stringlib
+
+To validate this step, you should see
+
+    Ces-MacBook-Pro:kbp czhang$ git branch
+      master
+    * mike-ce-stringlib
+    Ces-MacBook-Pro:kbp czhang$ ls
+      README.md        data	             udf              application.conf        setup_database.sh		
+      env_db.sh        schema.sql          env.sh           run.sh             		
+	
+     			              
+Second, change the database setting in the file `env_db.sh`, which is
+
+    #! /bin/bash
+    export DBNAME=deepdive_kbp_mikhail
+    export PGHOST=localhost
+    export PGPORT=5432
+
+Change this file to the database you want.
+
+To validate this step, you should be able to connect to the database using
+    
+    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
+    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT -l
+                                            List of databases
+              Name           |  Owner   | Encoding | Collate | Ctype |   Access privileges   
+    -------------------------+----------+----------+---------+-------+-----------------------
+     template0               | postgres | UTF8     | C       | C     | =c/postgres          +
+    ...
+    
+Third, Load initial data into the database (e.g., sentence, freebase etc.)
+
+    Ces-MacBook-Pro:kbp czhang$ sh setup_database.sh 
+
+You might see some errors, but don't worry, we will validate this step as follows.
+
+    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
+        
+    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT doc_id, text FROM sentence LIMIT 1"
+                  doc_id              |                             text                             
+    ----------------------------------+--------------------------------------------------------------
+     AFP_ENG_20070104.0483.LDC2009T13 | "When you see the people's spirit, you know this is going to+
+                                      | continue. 
+    (1 row)
+        
+    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM kb LIMIT 1"
+       eid1   |          rel          |  eid2   
+    ----------+-----------------------+---------
+     m.01f0tg | per:LOCATION_of_birth | m.0fhp9
+    (1 row)
+        
+    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM entities LIMIT 1"
+        fid    |    text     |     type      
+    -----------+-------------+---------------
+     m.026tjxz | andrés mata | people.person
+    (1 row)
+        
+    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM fbalias LIMIT 1"
+        fid    |        type        |    slot    
+    -----------+--------------------+------------
+     m.03hzmy2 | common.topic.alias | kato, gary
+    (1 row)
+
+Hopefully the schema of these tables are self-explanable.
+
+Now we are ready to run the Application. Type in
+
+    Ces-MacBook-Pro:kbp czhang$ time sh run.sh
+    ...
+    
+To see some example results, type in
+
+    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
+    
+
+
+
+OLD DOCS
+----
+
 The following files will be useful for running the application:
 - *env.sh:* sets up DeepDive environment variables
 - *env_db.sh:* sets up DB-specific environment variables
@@ -22,9 +119,6 @@ To run DeepDive (only this step needs to be re-run during development) - this al
 >> ./run.sh
 ```
 
-
-Initial data
-----
 
 The starter database contains 6 tables:
 - *sentence*: NLP-processed raw sentences (contain NER tags, dependency paths, etc.)
