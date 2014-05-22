@@ -27,3 +27,6 @@ psql -p $PGPORT -h $PGHOST $DBNAME < $DB_DUMP_FILE_UNCOMPRESSED
 
 # additional tables
 psql -p $PGPORT -h $PGHOST $DBNAME < schema.sql
+
+psql -p $PGPORT -h $PGHOST $DBNAME < ea.sql
+
