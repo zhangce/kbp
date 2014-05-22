@@ -120,10 +120,10 @@ deepdive_kbp=# select * from incompatible_relations limit 5;
 (5 rows)
 ```
 
-schema.sql creates 3 more tables, which will be populated by the extractors:
-- mentions
-- relation_mentions
-- relation_mention_features
+The file schema.sql creates 3 more tables, which will be populated by the extractors. The tables are:
+- mentions (populated by *ext_mention*)
+- relation_mentions (populated by *ext_relation_mention_positive*, *ext_relation_mention_negative*, and *ext_relation_mention*)
+- relation_mention_features (populated by *ext_relation_mention_feature*)
 
 
 Overview
