@@ -23,7 +23,7 @@ CREATE TABLE mentions (
 	word text,
 	type text,
 	start int,
-	end int
+	\"end\" int -- need to quote end, otherwise syntax error
 ) DISTRIBUTED BY (doc_id);
 
 
