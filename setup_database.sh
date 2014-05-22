@@ -18,11 +18,12 @@ createdb $DBNAME
 echo "Combining DB dump files..."
 date
 cat $DB_DUMP_FILE_1 $DB_DUMP_FILE_2 > $DB_DUMP_FILE_COMBINED
+tar xf $DB_DUMP_FILE_COMBINED
 
 # restore the database from the dump
 echo "Restoring DB from dump..."
 date
-pg_restore -p $PGPORT -h $PGHOST -d $DBNAME $DB_DUMP_FILE_COMBINED
+psql -p $PGPORT -h $PGHOST $DBNAME < $DB_DUMP_FILE_UNCOMPRESSED
 
 # additional tables
 psql -p $PGPORT -h $PGHOST $DBNAME < schema.sql

@@ -1,5 +1,5 @@
 #! /bin/bash
 
-export DBNAME=deepdive_kbp
-export PGHOST=madmax6
-export PGPORT=6432
+export DBNAME=deepdive_kbp_mikhail
+export PGHOST=localhost
+export PGPORT=5432

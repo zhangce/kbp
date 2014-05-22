@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-import ddext
+import sys
+import json
 
 """
 Extractor for entity mentions.
@@ -12,36 +13,25 @@ This extractor goes through all the words in the sentence and outputs as a menti
 words that have the same NER tag that is not in EXT_MENTION_IGNORE_TYPE.
 """
 
-def init():
-    ddext.input('doc_id', 'text')
-    ddext.input('sentence_id', 'text')
-    ddext.input('words', 'text[]')
-    ddext.input('pos', 'text[]')
-    ddext.input('ner', 'text[]')
-    ddext.input('lemma', 'text[]')
-    ddext.input('character_offset_begin', 'integer[]')
-    ddext.input('character_offset_end', 'integer[]')
+# the NER tags that wil not correspond to entity mentions types
+EXT_MENTION_IGNORE_TYPE = {'URL': 1, 'NUMBER' : 1, 'MISC' : 1, 'CAUSE_OF_DEATH' : 1,
+        'CRIMINAL_CHARGE' : 1, 'DURATION' : 1, 'MONEY' : 1, 'ORDINAL' : 1, 'RELIGION' : 1,
+        'SET' : 1, 'TIME' : 1}
 
-    ddext.returns('doc_id', 'text')
-    ddext.returns('mention_id', 'text')
-    ddext.returns('sentence_id', 'text')
-    ddext.returns('word', 'text')
-    ddext.returns('type', 'text')
-    ddext.returns('start', 'integer')
-    ddext.returns('\"end\"', 'integer') # Greenplum issues for end without quotes
+EXT_MENTION_TITLE_TYPE = {'winger' : 1, 'singer\\/songwriter' : 1, 'founder' : 1,
+        'president' : 1, 'executive director' : 1, 'producer' : 1, 'star' : 1, 'musician' : 1,
+            'nightlife impresario' : 1, 'lobbyist' : 1}
 
-
-def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, character_offset_end):
-    # the NER tags that wil not correspond to entity mentions types
-    if 'EXT_MENTION_IGNORE_TYPE' not in SD:
-        SD['EXT_MENTION_IGNORE_TYPE'] = {'URL': 1, 'NUMBER' : 1, 'MISC' : 1, 'CAUSE_OF_DEATH' : 1,
-            'CRIMINAL_CHARGE' : 1, 'DURATION' : 1, 'MONEY' : 1, 'ORDINAL' : 1, 'RELIGION' : 1,
-            'SET' : 1, 'TIME' : 1}
-
-    if 'EXT_MENTION_TITLE_TYPE' not in SD:
-        SD['EXT_MENTION_TITLE_TYPE'] = {'winger' : 1, 'singer\\/songwriter' : 1, 'founder' : 1,
-            'president' : 1, 'executive director' : 1, 'producer' : 1, 'star' : 1, 'musician' : 1,
-                'nightlife impresario' : 1, 'lobbyist' : 1}
+for row in sys.stdin:
+    obj = json.loads(row)
+    doc_id = obj["doc_id"]
+    sentence_id = obj["sentence_id"]
+    words = obj["words"]
+    pos = obj["pos"]
+    ner = obj["ner"]
+    lemma = obj["lemma"]
+    character_offset_begin = obj["character_offset_begin"]
+    character_offset_end = obj["character_offset_end"]
 
     # keep track of words whose NER tags we look at
     history = {}
@@ -56,7 +46,7 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
         nerc = ner[i]
 
         # skip this word if this NER tag should be ignored
-        if nerc in SD['EXT_MENTION_IGNORE_TYPE']:
+        if nerc in EXT_MENTION_IGNORE_TYPE:
             continue
 
         # collapse specific location types
@@ -96,18 +86,18 @@ def run(doc_id, sentence_id, words, pos, ner, lemma, character_offset_begin, cha
                 for w in range(i,j):
                     history[w] = 1
 
-            yield {"doc_id" : doc_id, "mention_id" : mention_id, "sentence_id" : sentence_id, \
-                   "word" : word.lower(), "type" : nerc, "start" : i, "end" : j}
+            print json.dumps({"doc_id" : doc_id, "mention_id" : mention_id, "sentence_id" : sentence_id, \
+                   "word" : word.lower(), "type" : nerc, "start_pos" : i, "end_pos" : j})
         
         # if this word has an NER tag of '0'
         else:
             # if the current word is one of the known titles, then we have a TITLE mention
-            if words[i].lower() in SD['EXT_MENTION_TITLE_TYPE']:
+            if words[i].lower() in EXT_MENTION_TITLE_TYPE:
                 history[i] = 1
                 word = words[i]
                 
                 # construct a unique ID for this entity mention
                 mention_id = doc_id + "_%d_%d" % (character_offset_begin[i], character_offset_end[i])
                 
-                yield {"doc_id" : doc_id, "mention_id" : mention_id, "sentence_id" : sentence_id, \
-                       "word" : word.lower(), "type" : 'TITLE', "start" : i, "end" : i + 1}
+                print json.dumps({"doc_id" : doc_id, "mention_id" : mention_id, "sentence_id" : sentence_id, \
+                       "word" : word.lower(), "type" : 'TITLE', "start_pos" : i, "end_pos" : i + 1})
