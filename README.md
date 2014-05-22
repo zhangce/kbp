@@ -1,7 +1,8 @@
 KBP
 ===
 
-[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/)
+This application is for the slot filling task of the 
+[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/).
 
 The following files will be useful for running the application:
 - *env.sh:* sets up DeepDive environment variables
