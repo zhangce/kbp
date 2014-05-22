@@ -1,10 +1,5 @@
 #! /bin/bash
 
-# DB configuration
-export PGHOST=madmax6
-export PGPORT=6432
-export DBNAME=deepdive_kbp_new_test
-
 dropdb $DBNAME
 createdb $DBNAME
 

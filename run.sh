@@ -1,7 +1,5 @@
 #! /bin/bash
 
-source "$APP_HOME/setup_database.sh"
-
 if [ -f $DEEPDIVE_HOME/sbt/sbt ]; then
   echo "DeepDive $DEEPDIVE_HOME"
 else
