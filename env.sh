@@ -10,7 +10,7 @@ export PARALLELISM=8
 # SBT Options
 export SBT_OPTS="-Xmx$MEMORY"
 
-# Database Configuration (this is overridden in setup_database.sh)
+# Database Configuration (default)
 export DBNAME="deepdive_`whoami`"
 export PGUSER=${PGUSER:-`whoami`}
 export PGPASSWORD=${PGPASSWORD:-}

@@ -1,5 +1,8 @@
 #! /bin/bash
 
+source $APP_HOME/env.sh
+source $APP_HOME/env_db.sh
+
 dropdb $DBNAME
 createdb $DBNAME
 
