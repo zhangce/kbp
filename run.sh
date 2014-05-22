@@ -3,6 +3,8 @@
 export APP_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export DEEPDIVE_HOME="$( cd $APP_HOME && cd ../..  && pwd )"
 
+export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
+
 source "$APP_HOME/env.sh"
 source "$APP_HOME/env_db.sh"
 
@@ -14,4 +16,4 @@ else
 fi
 
 cd $DEEPDIVE_HOME
-env $DEEPDIVE_HOME/sbt/sbt "run -c $APP_HOME/application.conf"
+sbt "run -c $APP_HOME/application.conf"
