@@ -72,13 +72,13 @@ def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset
     if len(mentions) > 20 or len(lemma) > 100:
         return
 
-    # list of Word objects
     obj = {}
     obj['lemma'] = lemma
     obj['words'] = words
     obj['dep_graph'] = dep_graph
-    
-    words = ddlib.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
+
+    # list of Word objects
+    word_obj_list = ddlib.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
         dep_graph_parser=dep_format_parser)
 
     # at this point we have a list of the mentions in this sentence
@@ -123,7 +123,7 @@ def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset
             #
 
             # list of DepEdge objects representing the dependency path
-            edges = ddlib.dep_path_between_words(words, end1 - 1, end2 - 1)
+            edges = ddlib.dep_path_between_words(word_obj_list, end1 - 1, end2 - 1)
 
             if len(edges) > 0:
                 num_roots = 0 # the number of root nodes
