@@ -6,6 +6,7 @@ export PGPORT=6432
 export DBNAME=deepdive_kbp_new_test
 
 dropdb $DBNAME
+createdb $DBNAME
 
 # combine the dump files together
 cat $DB_DUMP_FILE_1 $DB_DUMP_FILE_2 > $DB_DUMP_FILE_COMBINED
