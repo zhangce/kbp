@@ -53,13 +53,14 @@ def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset
         parent, label, child = dep_edge_str.split('\t')
         return (int(parent) - 1, label, int(child) - 1) # input edge used 1-based indexing       
 
-
+    # import sys
     if 'sys' in SD:
         sys = SD['sys']
     else: 
         import sys
         SD['sys'] = sys
 
+    # import lib.dd
     if 'ddlib' in SD:
         ddlib = SD['ddlib']
     else: 
@@ -121,7 +122,7 @@ def run(doc_id, sentence_id, lemma, dep_graph, words, pos, ner, character_offset
                 feature = "WORDSEQ_" + "_".join(lemma_between.elements).lower()
 
             features.append(feature)
-            
+
 
             #
             # dependency path feature
