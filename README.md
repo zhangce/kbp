@@ -68,13 +68,14 @@ The initial database dump contains the following tables:
 - `fbalias`: Freebase aliases for entities (a single entity can have several aliases).
 - `relation_types`: The typed relations we care to extract.
 - `incompatible_relations`: Contains tuples of the form (relation1, relation2) where relation2 is incompatible with relation1. This is used to generate negative examples (given (e1, relation1, e2), (e1, relation2, e2) will be a negative example).
+- `ea`: Contains the ground truth for the evaluation; to be used for error analysis.
 
 There are 3 additional tables that the system will need to create, to be used by the extractors. The tables are:
 - `mentions` (populated by `ext_mention`)
 - `relation_mentions` (populated by `ext_relation_mention_positive`, `ext_relation_mention_negative`, and `ext_relation_mention`)
 - `relation_mention_features` (populated by `ext_relation_mention_feature`)
 
-The first 6 tables are included in the database dump, and the second 3 tables are created in `schema.sql`. The script `setup_database.sh` will load all 9 tables into the database.
+The first 7 tables are included in the database dump, and the second 3 tables are created in `schema.sql`. The script `setup_database.sh` will load all 10 tables into the database.
 
 Load the initial database:
 
@@ -85,19 +86,20 @@ You may see some errors, but don't worry, they can be ignored. Validate that thi
     >> source env_db.sh
 
     >> psql -h $PGHOST -p $PGPORT $DBNAME -c "\d"
-                            List of relations
-     Schema |           Name            | Type  |  Owner   | Storage 
-    --------+---------------------------+-------+----------+---------
-     public | entities                  | table | czhang   | heap
-     public | fbalias                   | table | czhang   | heap
-     public | incompatible_relations    | table | msushkov | heap
-     public | kb                        | table | czhang   | heap
-     public | mentions                  | table | msushkov | heap
-     public | relation_mention_features | table | msushkov | heap
-     public | relation_mentions         | table | msushkov | heap
-     public | relation_types            | table | msushkov | heap
-     public | sentence                  | table | czhang   | heap
-    (9 rows)
+                       List of relations
+     Schema |           Name            | Type  |  Owner   
+    --------+---------------------------+-------+----------
+     public | ea                        | table | czhang
+     public | entities                  | table | czhang
+     public | fbalias                   | table | czhang
+     public | incompatible_relations    | table | msushkov
+     public | kb                        | table | czhang
+     public | mentions                  | table | msushkov
+     public | relation_mention_features | table | msushkov
+     public | relation_mentions         | table | msushkov
+     public | relation_types            | table | msushkov
+     public | sentence                  | table | czhang
+    (10 rows)
         
     >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT doc_id, text FROM sentence LIMIT 1"
                   doc_id              |                             text                             
@@ -290,3 +292,22 @@ Refer to the comments in *application.conf* for more information on each of thes
 ### Inference rules
 
 The inference rule (`relation_mention_lr`) simply uses the features extracted from the relation mentions to learn the expectation of a given relation mention being correct.
+
+### Debugging extractors
+
+It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
+
+For example, consider a scenario where we want to debug the entity mention extractor, `ext_mention`. We can first run `ext_mention_debug` to produce a sample TSV file, `udf/sample_data/ext_mention_sample_data.tsv`.
+
+Refer to [DeepDive's pipeline functionality](http://deepdive.stanford.edu/doc/pipelines.html) to see how to run the system with only a particular extractor. We can specify something like the following in `application.conf`:
+
+    pipeline.run: "debug_mention_ext"
+    pipeline.pipelines.debug_mention_ext: ["ext_mention_debug"]
+
+After running run.sh, this file can then be piped into the extractor we wish to debug, `udf/ext_mention.py`:
+
+    >> cat $APP_HOME/udf/sample_data/ext_mention_sample_data.tsv | python $APP_HOME/udf/ext_mention.py
+
+This process allows for interactive debugging of the extractors.
+
+The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.

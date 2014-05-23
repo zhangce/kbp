@@ -18,7 +18,9 @@ createdb $DBNAME
 echo "Combining DB dump files..."
 date
 cat $DB_DUMP_FILE_1 $DB_DUMP_FILE_2 > $DB_DUMP_FILE_COMBINED
+cd $APP_HOME/data
 tar xf $DB_DUMP_FILE_COMBINED
+cd $APP_HOME
 
 # restore the database from the dump
 echo "Restoring DB from dump..."
