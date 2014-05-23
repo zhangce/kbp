@@ -80,9 +80,7 @@ Load the initial database:
 
     >> sh setup_database.sh
 
-If you see the error `dropdb: database removal failed: ERROR:  database <database name> does not exist`, do not worry: the script drops the database before it creates it, and this means that your DB server did not contain the database. This does not mean the setup script failed.
-
-Validate this step as follows:
+You may see some errors, but don't worry, they can be ignored. Validate that this step succeeded as follows:
 
     >> source env_db.sh
 

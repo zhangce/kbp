@@ -38,11 +38,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 """
 
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-    ANALYZE freebase;
-"""
-
-psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-    ANALYZE ea_recall;
+   ANALYZE ea;
 """
 
 
@@ -50,7 +46,9 @@ echo "CREATE TABLE relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_nofreebase;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_nofreebase AS
         SELECT DISTINCT ON (t3.text, t5.type, t0.rel, t7.word, t7.type)
             t3.text                   AS entity_name, 
@@ -70,7 +68,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.expectation            AS score, 
             t6.text                   AS sentence, 
             t6.words                  AS words, 
-            ''::text                    AS slot_value_id
+            ''::text                  AS slot_value_id
         FROM 
             relation_mentions_is_correct_inference t0, 
             el_features_highprec t1, 
@@ -95,12 +93,12 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
-echo "INSERT INTO relation_extraction_evaluation_nofreebase..."
+echo "CREATE TABLE relation_extraction_evaluation_nofreebase2..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     INSERT INTO relation_extraction_evaluation_nofreebase 
         SELECT DISTINCT ON (t0.word1, t5.type, t0.rel, t7.word, t7.type)
-            t0.word1                  AS entity_name, 
+            t0.word1                   AS entity_name, 
             t5.type                   AS entity_type, 
             t0.rel                    AS relation, 
             t7.word                   AS slot_value_name, 
@@ -117,7 +115,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.expectation            AS score, 
             t6.text                   AS sentence, 
             t6.words                  AS words, 
-            ''::text                  AS slot_value_id
+            ''::text                    AS slot_value_id
         FROM 
             relation_mentions_is_correct_inference t0, 
             mentions t5, 
@@ -135,6 +133,8 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
+echo "DROP VIEW IF EXISTS coref_relation_mentions_is_correct_inference..."
+date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP VIEW IF EXISTS coref_relation_mentions_is_correct_inference;
 """
@@ -162,7 +162,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
            t1.mid2 = t2.mention_id;
 """
 
-echo "CREATE TABLE relation_extraction_evaluation_nofreebase..."
+echo "INSERT INTO relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     INSERT INTO relation_extraction_evaluation_nofreebase 
@@ -194,9 +194,9 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.doc_id = t7.doc_id AND
             t0.doc_id = t5.doc_id AND
             t0.doc_id = t6.doc_id AND
-            t7.mention_id=t0.mid2 AND
-            t5.mention_id=t0.mid1 AND 
-            t5.sentence_id=t6.sentence_id AND
+            t7.mention_id = t0.mid2 AND
+            t5.mention_id = t0.mid1 AND 
+            t5.sentence_id = t6.sentence_id AND
             t0.expectation > 0.9
     ORDER BY t0.word1, t5.type, t0.rel, t7.word, t7.type, t0.expectation DESC
 ;"""
@@ -244,7 +244,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 echo "INSERT INTO relation_extraction_evaluation_nofreebase"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-
     INSERT INTO relation_extraction_evaluation_nofreebase 
         SELECT DISTINCT ON (t3.text, t5.type, t0.rel, t0.word2)
             t3.text                   AS entity_name, 
@@ -264,7 +263,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.expectation            AS score, 
             t6.text                   AS sentence, 
             t6.words                  AS words, 
-            t0.word2                    AS slot_value_id
+            t0.word2                  AS slot_value_id
         FROM 
             relation_mentions_is_correct_inference t0, 
             el_features_highprec t1,  
@@ -275,12 +274,12 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.doc_id = t5.doc_id AND
             t0.doc_id = t6.doc_id AND
             t0.doc_id = t1.doc_id AND
-            t0.mid1=t1.mention_id AND  
+            t0.mid1 = t1.mention_id AND  
             t1.fid = t3.fid AND 
-            t5.mention_id=t0.mid1 AND 
-            t5.sentence_id=t6.sentence_id AND
-            t0.rel='per:title' AND
-	    t0.word2 <> 'father' AND t0.word2 <> 'brother' AND t0.word2 <> 'host president' AND t0.word2 <> 'sister' AND
+            t5.mention_id = t0.mid1 AND 
+            t5.sentence_id = t6.sentence_id AND
+            t0.rel = 'per:title' AND
+            t0.word2 <> 'father' AND t0.word2 <> 'brother' AND t0.word2 <> 'host president' AND t0.word2 <> 'sister' AND
             t0.expectation > 0.9
     ORDER BY t3.text, t5.type, t0.rel, t0.word2, t0.expectation DESC
 ;"""
@@ -290,7 +289,9 @@ echo "CREATE TABLE relation_extraction_evaluation_non_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_non_locations;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_non_locations AS
         SELECT  entity_name, 
                 entity_type,
@@ -322,7 +323,9 @@ echo "CREATE TABLE relation_extraction_evaluation_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_locations;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_locations AS
         SELECT *
         FROM  relation_extraction_evaluation_nofreebase
@@ -396,18 +399,27 @@ echo "CREATE TABLE relation_extraction_evaluation_new"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_new2;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_new;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_new2 AS
         SELECT * from relation_extraction_evaluation_non_locations;
 
     CREATE TABLE relation_extraction_evaluation_new AS
         SELECT DISTINCT ON (entity_name, relation, slot_value_name) *
-            FROM relation_extraction_evaluation_new2
-            ORDER BY entity_name, relation, slot_value_name, score DESC;
-
+          FROM relation_extraction_evaluation_new2
+          ORDER BY entity_name, relation, slot_value_name, score DESC;
 ;"""
+
+
+    # CREATE TABLE relation_extraction_evaluation_new2 AS
+    #     (SELECT * from relation_extraction_evaluation_locations_updated) UNION ALL
+    #     (SELECT * from relation_extraction_evaluation_non_locations);
+
 
 
 # run the RE evaluation script
