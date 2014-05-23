@@ -25,16 +25,17 @@ clone this repositary, and switch to the correct branch.
 
     >> git clone https://github.com/zhangce/kbp.git
     >> cd kbp
-    >> git checkout mike-ce-stringlib
+    >> git checkout mike-tsv-extractors
 
 To validate this step, you should see:
 
     >> git branch
       master
-    * mike-ce-stringlib
+      mike-ce-stringlib
+    * mike-tsv-extractors
     >> ls
-      README.md        data	             udf              application.conf        setup_database.sh		
-      env_db.sh        schema.sql          env.sh           run.sh             		
+    README.md           data            env_db.sh       run-evaluate.sh     schema.sql          udf
+    application.conf    env.sh          evaluation      run.sh              setup_database.sh          		
 	
 From now on we will be working in the kbp directory.
 
