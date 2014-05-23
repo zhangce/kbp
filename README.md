@@ -1,94 +1,160 @@
+---
+layout: default
+---
+
 KBP
-===
+====
 
-This application is for the slot filling task of the 
-[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/).
+This application is for the slot filling (relation extraction) task of the 
+[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses data for the 2010 task.
 
+## Installing DeepDive
 
-## Installation of DeepDive
+This tutorial assumes a working installation of DeepDive.
+Please go through the
+[example application walkthrough](http://deepdive.stanford.edu/doc/walkthrough.html) before proceeding.
 
-To use this code, you need to install DeepDive first. 
-We assume that you have already finish the 
-[walkthrough](http://deepdive.stanford.edu/doc/walkthrough.html).
-That is, you already have a folder called "app", that contains
-a "spouse" folder.
+After following the walkthrough, your deepdive directory should contain a folder called "app", which should contain a folder called "spouse".
 
-## Run KBP Application
+## Setting up KBP Application
 
-First, go to the folder "app" (same folder as you use in the walkthrough), 
+### Cloning the repository
+
+Navigate to the folder "app" (same folder as you use in the walkthrough), 
 clone this repositary, and switch to the correct branch.
 
-    Ces-MacBook-Pro:app czhang$ git clone https://github.com/zhangce/kbp.git
-    Ces-MacBook-Pro:app czhang$ cd kbp
-    Ces-MacBook-Pro:kbp czhang$ git checkout mike-ce-stringlib
+    >> git clone https://github.com/zhangce/kbp.git
+    >> cd kbp
+    >> git checkout mike-ce-stringlib
 
-To validate this step, you should see
+To validate this step, you should see:
 
-    Ces-MacBook-Pro:kbp czhang$ git branch
+    >> git branch
       master
     * mike-ce-stringlib
-    Ces-MacBook-Pro:kbp czhang$ ls
+    >> ls
       README.md        data	             udf              application.conf        setup_database.sh		
       env_db.sh        schema.sql          env.sh           run.sh             		
 	
-     			              
-Second, change the database setting in the file `env_db.sh`, which is
+From now on we will be working in the kbp directory.
+
+### Connecting to the database
+
+Change the database settings in the file `env_db.sh`, whose original contents is:
 
     #! /bin/bash
     export DBNAME=deepdive_kbp_mikhail
     export PGHOST=localhost
     export PGPORT=5432
 
-Change this file to the database you want.
+Change this file to point to your database.
 
-To validate this step, you should be able to connect to the database using
+To validate this step, you should be able to connect to the database by running the following commands:
     
-    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT -l
+    >> source env_db.sh
+    >> psql -h $PGHOST -p $PGPORT -l
                                             List of databases
               Name           |  Owner   | Encoding | Collate | Ctype |   Access privileges   
     -------------------------+----------+----------+---------+-------+-----------------------
      template0               | postgres | UTF8     | C       | C     | =c/postgres          +
     ...
     
-Third, Load initial data into the database (e.g., sentence, freebase etc.)
+### Loading initial data
 
-    Ces-MacBook-Pro:kbp czhang$ sh setup_database.sh 
+The initial database dump contains the following tables:
+- `sentence`: Result of processing raw text sentences using the [Stanford NLP parser](http://nlp.stanford.edu/software/lex-parser.shtml). The sentence table contains 70805 sentences, which is 0.2% of the full corpus for 2010.
+- `kb`: Contains tuples of the form (entity1, relation, entity2); this is the knowledge base used for distant supervision.
+- `entities`: A set of entities from Freebase.
+- `fbalias`: Freebase aliases for entities (a single entity can have several aliases).
+- `relation_types`: The typed relations we care to extract.
+- `incompatible_relations`: Contains tuples of the form (relation1, relation2) where relation2 is incompatible with relation1. This is used to generate negative examples (given (e1, relation1, e2), (e1, relation2, e2) will be a negative example).
 
-You might see some errors, but don't worry, we will validate this step as follows.
+There are 3 additional tables that the system will need to create, to be used by the extractors. The tables are:
+- `mentions` (populated by `ext_mention`)
+- `relation_mentions` (populated by `ext_relation_mention_positive`, `ext_relation_mention_negative`, and `ext_relation_mention`)
+- `relation_mention_features` (populated by `ext_relation_mention_feature`)
 
-    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
+The first 6 tables are included in the database dump, and the second 3 tables are created in `schema.sql`. The script `setup_database.sh` will load all 9 tables into the database.
+
+Load the initial database:
+
+    >> sh setup_database.sh
+
+If you see the error `dropdb: database removal failed: ERROR:  database <database name> does not exist`, do not worry: the script drops the database before it creates it, and this means that your DB server did not contain the database. This does not mean the setup script failed.
+
+Validate this step as follows:
+
+    >> source env_db.sh
+
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "\d"
+                            List of relations
+     Schema |           Name            | Type  |  Owner   | Storage 
+    --------+---------------------------+-------+----------+---------
+     public | entities                  | table | czhang   | heap
+     public | fbalias                   | table | czhang   | heap
+     public | incompatible_relations    | table | msushkov | heap
+     public | kb                        | table | czhang   | heap
+     public | mentions                  | table | msushkov | heap
+     public | relation_mention_features | table | msushkov | heap
+     public | relation_mentions         | table | msushkov | heap
+     public | relation_types            | table | msushkov | heap
+     public | sentence                  | table | czhang   | heap
+    (9 rows)
         
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT doc_id, text FROM sentence LIMIT 1"
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT doc_id, text FROM sentence LIMIT 1"
                   doc_id              |                             text                             
     ----------------------------------+--------------------------------------------------------------
      AFP_ENG_20070104.0483.LDC2009T13 | "When you see the people's spirit, you know this is going to+
                                       | continue. 
     (1 row)
         
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM kb LIMIT 1"
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM kb LIMIT 1"
        eid1   |          rel          |  eid2   
     ----------+-----------------------+---------
      m.01f0tg | per:LOCATION_of_birth | m.0fhp9
     (1 row)
         
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM entities LIMIT 1"
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM entities LIMIT 1"
         fid    |    text     |     type      
     -----------+-------------+---------------
      m.026tjxz | andrés mata | people.person
     (1 row)
         
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM fbalias LIMIT 1"
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM fbalias LIMIT 1"
         fid    |        type        |    slot    
     -----------+--------------------+------------
      m.03hzmy2 | common.topic.alias | kato, gary
     (1 row)
 
-Hopefully the schema of these tables are self-explanable.
+     >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM relation_types LIMIT 1"
+     type1  | type2  |       rel        | is_functional 
+    --------+--------+------------------+---------------
+     PERSON | PERSON | per:parents      | f
+    (1 row)
 
-Now we are ready to run the Application. Type in
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM incompatible_relations LIMIT 1"
+             type1         |           type2           
+    -----------------------+---------------------------
+     per:date_of_death     | per:date_of_birth
+    (1 row)
 
-    Ces-MacBook-Pro:kbp czhang$ time sh run.sh
+To check the schema of any of these tables, run the following:
+
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "\d entities"
+      Table "public.entities"
+     Column | Type | Modifiers 
+    --------+------+-----------
+     fid    | text | 
+     text   | text | 
+     type   | text | 
+
+You are now ready to run the KBP application.
+
+## Running KBP application
+
+Make sure you are in the kbp directory. To run the application, type in:
+
+    >> time sh run.sh
     ...
     04:26:09 [profiler] INFO  --------------------------------------------------
     04:26:09 [profiler] INFO  Summary Report
@@ -130,10 +196,10 @@ Now we are ready to run the Application. Type in
     user	2m30.093s
     sys	0m26.283s
 
-To see some example results, type in
+To see some example results, type in:
 
-    Ces-MacBook-Pro:kbp czhang$ source env_db.sh
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "select word1, word2, rel from relation_mentions_is_correct_inference where rel = 'per:title' order by expectation desc limit 10;"
+    >> source env_db.sh
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "select word1, word2, rel from relation_mentions_is_correct_inference where rel = 'per:title' order by expectation desc limit 10;"
               word1          |   word2    |    rel    
     -------------------------+------------+-----------
      jose eduardo dos santos | president  | per:title
@@ -149,12 +215,13 @@ To see some example results, type in
     (10 rows)
 
 
-## Evaluation
+## Evaluating the results
 
-To get a score, which probably is a bad score because there are only
-70805 sentences in the dump (our sample is 0.2% of the full corpus), type in
+The KBP application contains a scorer for the TAC KBP slot filling task. The example system will not achieve a high score on the task because our sample of 70805 sentences is only 0.2% of the full corpus.
 
-    Ces-MacBook-Pro:kbp czhang$ sh run-evaluate.sh
+To get the score, type in:
+
+    >> sh run-evaluate.sh
     ...
                                 	2010 scores:
     [STDOUT]                    	Recall: 5.0 / 1040.0 = 0.004807692307692308
@@ -184,13 +251,13 @@ To get a score, which probably is a bad score because there are only
                           } << main [2.405 seconds]
 
 In this log, the precision is 62.5 (human agreement rate is around 70), and recall is low
-(our sample is 0.2% of the full corpus).
+since our sample is 0.2% of the full corpus.
 
 For the ease of error analysis, we also include a relational-form of the ground truth. To
-see the ground truth, type in
+see the ground truth, type in:
 
-    Ces-MacBook-Pro:kbp czhang$ source env_db.sh 
-    Ces-MacBook-Pro:kbp czhang$ psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM ea limit 10;"
+    >> source env_db.sh 
+    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM ea limit 10;"
      query |                  sub                   |           rel            |           obj            
     -------+----------------------------------------+--------------------------+--------------------------
      SF208 | kendra wilkinson                       | per:age                  | 23
@@ -206,142 +273,22 @@ see the ground truth, type in
     (10 rows)
 
 
-OLD DOCS
-----
-
-The following files will be useful for running the application:
-- *env.sh:* sets up DeepDive environment variables
-- *env_db.sh:* sets up DB-specific environment variables
-- *setup_database.sh:* loads the starting DB and creates additional necessary tables
-- *run.sh:* runs the application using DeepDive
-
-Edit *env_db.sh* as necessary to change the *PGHOST*, *PGPORT*, and *DBNAME* variables.
-
-If running the KBP application for the first time, set up the database (*setup_database.sh* runs *env.sh* and *env_db.sh*):
-```
->> source setup_database.sh
-```
-
-To run DeepDive (only this step needs to be re-run during development) - this also runs *env.sh* and *env_db.sh*:
-```
->> ./run.sh
-```
-
-
-The starter database contains 6 tables:
-- *sentence*: NLP-processed raw sentences (contain NER tags, dependency paths, etc.)
-```
-deepdive_kbp=# \d sentence
-               Table "public.sentence"
-           Column            |   Type    | Modifiers 
------------------------------+-----------+-----------
- id                          | bigint    | 
- doc_id                      | text      | 
- text                        | text      | 
- original_text               | text[]    | 
- words                       | text[]    | 
- pos                         | text[]    | 
- ner                         | text[]    | 
- lemma                       | text[]    | 
- gender                      | text[]    | 
- true_case_text              | text[]    | 
- timex_value                 | text[]    | 
- timex_type                  | text[]    | 
- character_offset_begin      | integer[] | 
- character_offset_end        | integer[] | 
- dep_graph                   | text[]    | 
- sentence_index              | integer   | 
- paragraph                   | integer   | 
- sentence_token_offset_begin | integer   | 
- constituency_parse          | text      | 
- sentence_id                 | text      | 
-Distributed by: (doc_id)
-```
-
-- *entities*: the Freebase entities
-```
-deepdive_kbp=# select * from entities limit 5;
-    fid    |      text       |     type      
------------+-----------------+---------------
- m.026tjxz | andrés mata     | people.person
- m.0178rl  | tim rice        | people.person
- m.0n9kvs1 | norma           | people.person
- m.0ykxjhq | richard plofker | people.person
- m.0hn30xt | rona            | people.person
-(5 rows)
-```
-
-- *kb*: contains tuples of the form (entity1, relation, entity2); this is the knowledge base used for distant supervision
-```
-deepdive_kbp=# select * from kb limit 5;
-    eid1    |          rel          |   eid2   
-------------+-----------------------+----------
- m.0105fkh_ | per:LOCATION_of_birth | m.0t80w
- m.0268317  | per:LOCATION_of_birth | m.09c7w0
- m.026k5hl  | per:LOCATION_of_birth | m.04p3c
- m.027kd7p  | per:LOCATION_of_birth | m.09c7w0
- m.02q7wf6  | per:LOCATION_of_birth | m.05ywg
-(5 rows)
-```
-
-- *fbalias*: contains Freebase aliases for entities (a single entity can have several aliases)
-```
-deepdive_kbp=# select * from fbalias limit 5;
-    fid    |        type        |      slot      
------------+--------------------+----------------
- m.05c_l_k | common.topic.alias | gf
- m.0b42_l  | common.topic.alias | dadawah
- m.0x1ynxb | common.topic.alias | aderlan santos
- m.01w9jj  | common.topic.alias | ziq
- m.04mzjkx | common.topic.alias | leo ross
-(5 rows)
-```
-
-- *relation_types*: contains the typed relations we care to extract
-```
-deepdive_kbp=# select * from relation_types limit 5;
- type1  | type2  |       rel        | is_functional 
---------+--------+------------------+---------------
- PERSON | PERSON | per:parents      | f
- PERSON | PERSON | per:other_family | f
- PERSON | PERSON | per:siblings     | f
- PERSON | PERSON | per:spouse       | f
- PERSON | PERSON | per:children     | f
-(5 rows)
-```
-
-- *incompatible_relations*: contains tuples of the form (relation1, relation2) where relation2 is incompatible with relation1; this is used to generate negative examples (given (e1, relation1, e2), (e1, relation2, e2) will be a negative example)
-```
-deepdive_kbp=# select * from incompatible_relations limit 5;
-         type1         |           type2           
------------------------+---------------------------
- per:date_of_death     | per:date_of_birth
- per:date_of_death     | per:title
- per:religion          | per:title
- per:LOCATION_of_death | per:employee_or_member_of
- per:LOCATION_of_death | per:LOCATION_of_birth
-(5 rows)
-```
-
-The file schema.sql creates 3 more tables, which will be populated by the extractors. The tables are:
-- mentions (populated by *ext_mention*)
-- relation_mentions (populated by *ext_relation_mention_positive*, *ext_relation_mention_negative*, and *ext_relation_mention*)
-- relation_mention_features (populated by *ext_relation_mention_feature*)
-
-
-Overview
-----
+## Application Overview
 
 The application contains a number of extractors and a single inference rule.
 
+### Extractors
+
 There are several types of extractors:
-- Entity mention extractor (*ext_mention*)
-- Relation mention feature extractor (*ext_relation_mention_feature*)
-- Coreference candidate extractor (*ext_coref_candidate*)
-- Entity linking feature extractors (starts with *ext_el_feature_extstr_person* and ends with *ext_el_feature_coref*)
-- Extractors that generate positive (*ext_relation_mention_positive*) and negative (*ext_relation_mention_negative*) training examples for relation mentions
-- Relation mention extractor (*ext_relation_mention*)
+- Entity mention extractor (`ext_mention`)
+- Relation mention feature extractor (`ext_relation_mention_feature`)
+- Coreference candidate extractor (`ext_coref_candidate`)
+- Entity linking feature extractors (starts with `ext_el_feature_extstr_person` and ends with `ext_el_feature_coref`)
+- Extractors that generate positive (`ext_relation_mention_positive`) and negative (`ext_relation_mention_negative`) training examples for relation mentions
+- Relation mention extractor (`ext_relation_mention`)
 
 Refer to the comments in *application.conf* for more information on each of these extractors.
 
-The inference rule (*relation_mention_lr*) simply uses the features extracted from the relation mentions to learn the expectation of a given relation mention being correct.
+### Inference rules
+
+The inference rule (`relation_mention_lr`) simply uses the features extracted from the relation mentions to learn the expectation of a given relation mention being correct.
