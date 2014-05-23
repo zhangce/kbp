@@ -65,13 +65,13 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     ANALYZE mentions;
 """
 
-psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-    ANALYZE freebase;
-"""
+#psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
+#    ANALYZE freebase;
+#"""
 
-psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-    ANALYZE ea_recall;
-"""
+#psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
+#    ANALYZE ea_recall;
+#"""
 
 
 # took 27s on 1%, ~20 mins on 100%
@@ -79,7 +79,9 @@ echo "CREATE TABLE relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_nofreebase;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_nofreebase AS
         SELECT DISTINCT ON (t3.text, t5.type, t0.rel, t7.word, t7.type)
             t3.text                   AS entity_name, 
@@ -309,7 +311,9 @@ echo "CREATE TABLE relation_extraction_evaluation_non_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_non_locations;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_non_locations AS
         SELECT  entity_name, 
                 entity_type,
@@ -345,7 +349,9 @@ echo "CREATE TABLE relation_extraction_evaluation_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_locations;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_locations AS
         SELECT *
         FROM  relation_extraction_evaluation_nofreebase
@@ -421,9 +427,13 @@ echo "CREATE TABLE relation_extraction_evaluation_new"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_new2;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP TABLE IF EXISTS relation_extraction_evaluation_new;
+"""
 
+psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_new2 AS
         SELECT * from relation_extraction_evaluation_non_locations;
 
