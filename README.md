@@ -310,4 +310,6 @@ After running run.sh, this file can then be piped into the extractor we wish to 
 
 This process allows for interactive debugging of the extractors.
 
+Note that if you change the inut SQL query to an extractor, you will also need to change it in the debug version of that extractor.
+
 The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.
