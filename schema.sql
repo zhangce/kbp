@@ -1,5 +1,10 @@
 --
--- This file defines the needed database tables.
+-- This file defines database tables that are needed in addition to the ones provided in the
+-- initial database dump.
+--
+
+--
+-- Functions
 --
 
 -- replacement for PSQL's buggy array_agg()
@@ -11,8 +16,16 @@ CREATE AGGREGATE array_accum(anyelement)
   initcond = '{}'
 );
 
--- NOTE: DISTRIBUTED BY only supported in Greenplum; edit this file appropriately depending
--- on your database system
+-- Simple modification of the default array_to_string function that accepts a NULL symbol
+-- (NULL values in the array will be replaced by this in the resulting string)
+CREATE OR REPLACE FUNCTION my_array_to_string(dta anyarray, sep text, nullsym text) RETURNS text AS
+$$
+  SELECT array_to_string(ARRAY(SELECT coalesce(v::text, $3) FROM unnest($1) g(v)), $2)
+$$ LANGUAGE sql;
+
+--
+-- Tables
+--
 
 -- entity mentions
 DROP TABLE IF EXISTS mentions CASCADE;
@@ -24,8 +37,7 @@ CREATE TABLE mentions (
 	type text,
 	start_pos int,
 	end_pos int -- need to quote end, otherwise syntax error
-) ;
-
+);
 
 -- relation mentions
 DROP TABLE IF EXISTS relation_mentions CASCADE;
@@ -38,8 +50,7 @@ CREATE TABLE relation_mentions (
 	word2 text,
 	rel text,
 	is_correct boolean
-) ;
-
+);
 
 -- features for a given relation mention
 -- (currently: word sequence, dependency path, presence of marriage keywords)
@@ -53,4 +64,4 @@ CREATE TABLE relation_mention_features (
 	type1 text,
 	type2 text,
 	feature text
-) ;
+);

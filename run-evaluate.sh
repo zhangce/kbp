@@ -1,45 +1,17 @@
 #! /bin/bash
 
 ###
-### ENTITY LINKING EVALUATION
-###
-
-# # remove the results file for evaluation
-# rm $EL_RESULTS_FILE
-# touch $EL_RESULTS_FILE
-
-# # after inference is done, populate the results file
-# source "$APP_HOME/populate_results.sh"
-
-# # run the EL evaluation script
-# perl $APP_HOME/evaluation/entity-linking/kbpenteval.pl $APP_HOME/evaluation/entity-linking/el_2010_eval_answers.tsv $APP_HOME/evaluation/entity-linking/results/out.tsv
-
-
-###
 ### RELATION EXTRACTION EVALUATION
 ###
 
-APP_HOME=`pwd`
-DEEPDIVE_HOME=`cd ../..; pwd`
-
-# Machine Configuration
-MEMORY="64g"
-#export MEMORY="2g"
-
-PARALLELISM=8
-#export PARALLELISM=4
+export APP_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export DEEPDIVE_HOME="$( cd $APP_HOME && cd ../..  && pwd )"
 
 source "$APP_HOME/env.sh"
 source "$APP_HOME/env_db.sh"
 
-# Database Configuration
-#DBNAME="deepdive_kbp_msushkov_large"
-#PGUSER=${PGUSER:-`whoami`}
-#PGPASSWORD=${PGPASSWORD:-}
-#PGPORT=${PGPORT:-6432}
-#PGHOST=${PGHOST:-madmax6}
 
-echo "analyzing tables..."
+echo "Analyzing tables..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     ANALYZE relation_mentions;
@@ -74,7 +46,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 """
 
 
-# took 27s on 1%, ~20 mins on 100%
 echo "CREATE TABLE relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
@@ -124,13 +95,12 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
-echo "CREATE TABLE relation_extraction_evaluation_nofreebase2..."
+echo "INSERT INTO relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-
     INSERT INTO relation_extraction_evaluation_nofreebase 
         SELECT DISTINCT ON (t0.word1, t5.type, t0.rel, t7.word, t7.type)
-            t0.word1                   AS entity_name, 
+            t0.word1                  AS entity_name, 
             t5.type                   AS entity_type, 
             t0.rel                    AS relation, 
             t7.word                   AS slot_value_name, 
@@ -147,7 +117,7 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
             t0.expectation            AS score, 
             t6.text                   AS sentence, 
             t6.words                  AS words, 
-            ''::text                    AS slot_value_id
+            ''::text                  AS slot_value_id
         FROM 
             relation_mentions_is_correct_inference t0, 
             mentions t5, 
@@ -165,20 +135,34 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
-echo "CREATE TABLE relation_extraction_evaluation_nofreebase3..."
-date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     DROP VIEW IF EXISTS coref_relation_mentions_is_correct_inference;
 """
 
-echo "CREATE TABLE relation_extraction_evaluation_nofreebase3..."
+echo "CREATE VIEW coref_relation_mentions_is_correct_inference..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
-   create view coref_relation_mentions_is_correct_inference
-   as select t0.id, t0.doc_id, t0.mid1, t0.mid2, t2.word as word1, t0.word2, t0.rel, t0.is_correct, t0.category, t0.expectation from relation_mentions_is_correct_inference t0, coref_candidates t1, mentions t2 where t0.doc_id=t1.doc_id and t0.doc_id=t2.doc_id and t0.mid1=t1.mid1 and t1.mid2=t2.mention_id;
+   CREATE VIEW coref_relation_mentions_is_correct_inference AS
+    SELECT t0.id,
+           t0.doc_id,
+           t0.mid1,
+           t0.mid2,
+           t2.word AS word1,
+           t0.word2,
+           t0.rel,
+           t0.is_correct,
+           t0.category,
+           t0.expectation
+      FROM relation_mentions_is_correct_inference t0,
+           coref_candidates t1,
+           mentions t2
+     WHERE t0.doc_id = t1.doc_id AND
+           t0.doc_id = t2.doc_id AND
+           t0.mid1 = t1.mid1 AND
+           t1.mid2 = t2.mention_id;
 """
 
-echo "CREATE TABLE relation_extraction_evaluation_nofreebase4..."
+echo "CREATE TABLE relation_extraction_evaluation_nofreebase..."
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     INSERT INTO relation_extraction_evaluation_nofreebase 
@@ -257,8 +241,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 
 
 
-
-
 echo "INSERT INTO relation_extraction_evaluation_nofreebase"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
@@ -304,7 +286,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
-# takes 13s on full data set
 echo "CREATE TABLE relation_extraction_evaluation_non_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
@@ -313,12 +294,10 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_non_locations AS
         SELECT  entity_name, 
                 entity_type,
-
                 CASE WHEN relation LIKE 'per:employee_or_member_of' AND entity_type LIKE 'PERSON' THEN 'per:employee_of'
                      WHEN relation LIKE 'org:founded_by' THEN 'org:top_members/employees'
                      ELSE relation
                 END AS relation,
-
                 slot_value_name, 
                 slot_value_type, 
                 entity_id, 
@@ -334,13 +313,11 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
                 sentence, 
                 words, 
                 slot_value_id
-
         FROM relation_extraction_evaluation_nofreebase
         WHERE relation NOT LIKE '%LOCATION%' 
 ;"""
 
 
-# takes 12s on full data set
 echo "CREATE TABLE relation_extraction_evaluation_locations"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
@@ -353,7 +330,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 ;"""
 
 
-# takes 1 min on 100%
 # if _of_residence_, then want plural
 # echo "CREATE TABLE relation_extraction_evaluation_locations_updated"
 # date
@@ -416,7 +392,6 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
 # ;"""
 
 
-# took 6s on 1%, 3 min on 100%
 echo "CREATE TABLE relation_extraction_evaluation_new"
 date
 psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
@@ -427,16 +402,12 @@ psql -p $PGPORT -h $PGHOST -U $PGUSER $DBNAME -c """
     CREATE TABLE relation_extraction_evaluation_new2 AS
         SELECT * from relation_extraction_evaluation_non_locations;
 
-    create table relation_extraction_evaluation_new as select distinct on (entity_name, relation, slot_value_name) * from 
-    relation_extraction_evaluation_new2 order by entity_name, relation, slot_value_name, score desc;
+    CREATE TABLE relation_extraction_evaluation_new AS
+        SELECT DISTINCT ON (entity_name, relation, slot_value_name) *
+            FROM relation_extraction_evaluation_new2
+            ORDER BY entity_name, relation, slot_value_name, score DESC;
 
 ;"""
-
-
-    # CREATE TABLE relation_extraction_evaluation_new2 AS
-    #     (SELECT * from relation_extraction_evaluation_locations_updated) UNION ALL
-    #     (SELECT * from relation_extraction_evaluation_non_locations);
-
 
 
 # run the RE evaluation script

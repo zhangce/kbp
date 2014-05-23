@@ -1,6 +1,6 @@
 #! /bin/bash
 
 export DBNAME=deepdive_kbp_mikhail
-export PGUSER=`whoami`
-export PGHOST=localhost
-export PGPORT=5432
+export PGUSER=czhang
+export PGHOST=madmax6
+export PGPORT=6432
