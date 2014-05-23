@@ -4,7 +4,8 @@ export APP_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export DEEPDIVE_HOME="$( cd $APP_HOME && cd ../..  && pwd )"
 
 # Machine Configuration
-export MEMORY="64g"
+#export MEMORY="64g"
+export MEMORY="2g"
 export PARALLELISM=8
 
 # SBT Options
