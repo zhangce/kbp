@@ -6,10 +6,9 @@ KBP
 ====
 
 In this document we will build an application for the slot filling (relation extraction) task of the 
-[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall of the results (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves a winning F1 score of ___ on the KBP task.
+[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves a winning F1 score of ___ on the KBP task.
 
 <a id="overview" href="#"> </a>
-
 ## Application overview
 
 This tutorial will walk you through building a full DeepDive application that extracts the TAC KBP relationships between mentions of entities in raw text. We use news articles and blogs as our input data and want to extract all pairs of entities that participate in the KBP relations (e.g. *Barack Obama* and *Michelle Obama* for the `spouse` relation).
@@ -18,7 +17,7 @@ The application is an extension of the [mention-level extraction system](http://
 
 1. Load data from provided database dump
 2. Extract entity mentions from sentences
-3. Extract lexical and syntactic features for relation mentions (entity mentions pairs in the same sentence)
+3. Extract lexical and syntactic features from relation mentions (entity mentions pairs in the same sentence)
 4. Extract candidates for coreferent mentions
 5. Extract features for entity linking (linking Freebase entities to mentions in text)
 6. Generate positive and negative training examples for relation mentions
@@ -34,25 +33,18 @@ Let us now go through the steps to get the example KBP system up and running.
 ### Contents
 
 * [Installing DeepDive](#installing)
-* [Setting up KBP application]()
-  - [Cloning the repository]()
-  - [Connecting to the database]()
-  - [Loading initial data]()
-* [Writing extractors]()
-* [Debugging extractors]()
-* [Writing inference rules]()
-* [Running KBP application]()
-* [Evaluating the results]()
+* [Setting up KBP application](#setting_up)
+  - [Cloning the repository](#cloning)
+  - [Connecting to the database](#connecting)
+  - [Loading initial data](#loading)
+* [Writing extractors](#writing_extractors)
+* [Writing inference rules](#writing_inference_rules)
+* [Running KBP application](#running)
+* [Debugging extractors](#debugging_extractors)
+* [Evaluating the results](#evaluating)
 
-
-<a id="inference_overview" href="#"> </a>
-
-### Overview of inference rules
-
-The inference rule (`relation_mention_lr`) simply uses the features extracted from the relation mentions to learn the expectation of a given relation mention being correct.
 
 <a id="installing" href="#"> </a>
-
 ## Installing DeepDive
 
 This tutorial assumes a working installation of DeepDive.
@@ -62,11 +54,9 @@ Please go through the
 After following the walkthrough, your deepdive directory should contain a folder called "app", which should contain a folder called "spouse".
 
 <a id="setting_up" href="#"> </a>
-
-## Setting Up KBP Application
+## Setting up KBP application
 
 <a id="cloning" href="#"> </a>
-
 ### Cloning the repository
 
 Navigate to the folder "app" (same folder as you use in the walkthrough), 
@@ -90,7 +80,6 @@ To validate this step, you should see:
 From now on we will be working in the kbp directory.
 
 <a id="connecting" href="#"> </a>
-
 ### Connecting to the database
 
 Change the database settings in the file `env_db.sh`, whose original contents is:
@@ -113,7 +102,6 @@ To validate this step, you should be able to connect to the database by running 
     ...
     
 <a id="loading" href="#"> </a>
-
 ### Loading initial data
 
 The initial database dump contains the following tables:
@@ -205,7 +193,6 @@ To check the schema of any of these tables, run the following:
 
 
 <a id="writing_extractors" href="#"> </a>
-
 ## Writing extractors
 
 The extractors are created in `application.conf`. Several extractors in this example are [TSV extractors](http://deepdive.stanford.edu/doc/extractors.html#tsv_extractor), and the UDFs for them are contained in `APP_HOME/udf`. However, the majority are [SQL extractors](http://deepdive.stanford.edu/doc/extractors.html#sql_extractor) that do not have UDFs.
@@ -219,8 +206,10 @@ As stated in the [overview](#overview), the extractors perform the following hig
   - Exact string match
   - Freebase alias
   - Coreference
-- Generate positive and negative training examples for relation mentions.
+- Add positive and negative training examples for relation mentions.
 - Extract the relation mentions.
+
+Note that the entity linking step is necessary because our training data is at the entity level, but in order for the system to learn text patterns, this needs to be mapped to the mention level. That entity -> mention mapping is the entity linking.
 
 We will walk through each of the extractors in more detail below.
 
@@ -407,7 +396,11 @@ for row in sys.stdin:
         print "\t".join(output)
 ```
 
-### Relation mention feature: word sequence
+### Extracting features from relation mentions
+
+We will skip the relation mention generation step for now, and will go straight to extracting features form relation mentions (while generating the mentions in the process). The `relation_mention_features` table will be used later to generate the `relation_mentions` table.
+
+#### Relation mention feature: word sequence
 
 Once we have identified the entity mentions in text, we can extract features from all mention pairs in the same sentence (these mentions pairs are referred to as relation mentions). This extractor will extract the *word sequence* feature for a relation mention: the exact sequence of words that occurs between the two mentions.
 
@@ -537,7 +530,7 @@ for row in sys.stdin:
       print "\t".join(output)
 ```
 
-### Relation mention feature: dependency path
+#### Relation mention feature: dependency path
 
 In addition to the word sequence feature, we can extract a lexical feature: the dependency path between the mentions in the sentence. This extractor will make use the *dep_graph* column of the `sentence` table, which gives a list of dependency edges in the sentence's dependency tree. The ddlib library included in the `$APP_HOME/udf/lib` directory provides some utilities for making the parsing of the dependency tree easier.
 
@@ -818,8 +811,9 @@ ext_coref_candidate {
 
 This is an SQL extractor, which means that it has no UDF but simply executes a query.
 
+## Entity linking
 
-## Entity linking: exact string match between entities and mentions
+### Entity linking: exact string match between entities and mentions
 
 To identify which mentions in text refer to which entities, we need to perform entity linking. This involves extracting specific features from (entity, mention) pairs. This extractor extracts the "exact string match" feature between (entity, mention) pairs (this feature is denoted as 'es'). An (entity, mention) pair emits the 'es' feature if the following conditions hold:
 - the entity and mention have corresponding types
@@ -867,7 +861,7 @@ ext_el_feature_extstr_location {
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
 
-## Entity linking: exact string match between Freebase aliases for entities and mentions
+### Entity linking: exact string match between Freebase aliases for entities and mentions
 
 In addition to exact string match between entities and mention, we consider in the entity linking step (entity, mention) pairs where the entity has a Freebase alias whose text is an exact match for the mention text. The extractors are similar to the exact string match above, but each input query now also performs a join on the `fbalias` table. The extractors extract the "alias" feature between (entity, mention) pairs (this feature is denoted as 'al'). An (entity, mention) pair emits the 'al' feature if the following conditions hold:
 - the entity and mention have corresponding types
@@ -917,9 +911,9 @@ ext_el_feature_alias_location {
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
 
-## Entity linking: coreferent mentions
+### Entity linking: coreferent mentions
 
-We also consider in the entity linking step (entity, mention) pairs where the mention is coreferent with another mention m' such that the (entity, m') pair emitted the "exact string match" feature. In other words, given the entity and mention pair (e1, m1) for which we have the entity linking feature 'es', and mention m2 that is coreferent with m1, choose (e1, m2) to have the coreference entity linking feature, denoted as 'co'.
+We also consider in the entity linking step (entity, mention) pairs where the mention is coreferent with another mention m' such that the (entity, m') pair emits the "exact string match" feature. In other words, given the entity and mention pair (e1, m1) for which we have the entity linking feature 'es', and mention m2 that is coreferent with m1, choose (e1, m2) to have the coreference entity linking feature, denoted as 'co'.
 
 This extractor is defined in `application.conf` using the following code:
 
@@ -950,12 +944,162 @@ ext_el_feature_coref {
 
     TODO
 
+## Adding training data
+
+In order for the system to learn text patterns that indicate the presence of certain relationships between entities, we must provide training examples. 
+
+### Training data: positive examples
+
+The positive examples come from the existing knowledge base table, `kb`. The table contains tuples of the form (entity1, relation, entity2). Note that our training data is entity-level; however, in order for the system to learn text patterns this data needs to be mapped to the mention level. Also note that since we are adding positive examples we insert True into the `is_correct` column of the `relation_mentions` table.
+
+For each (entity1, relation, entity2) tuple in the knowledge base, the extractor finds mentions m1 and m2 that link to entities entity1 and entity2, respectively, and then joins the result with the relation mention feature table in order to extract the rellevant relation mention information. This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_relation_mention_positive {
+  sql: """
+    INSERT INTO relation_mentions (doc_id, mid1, mid2, word1, word2, rel, is_correct)
+      SELECT DISTINCT r.doc_id,
+                      r.mid1,
+                      r.mid2,
+                      r.word1,
+                      r.word2,
+                      kb.rel,
+                      True
+      FROM relation_mention_features r,
+           el_features_highprec t1,
+           el_features_highprec t2,
+           kb
+      WHERE r.mid1 = t1.mention_id AND
+            r.mid2 = t2.mention_id AND
+            t1.fid = kb.eid1 AND
+            t2.fid = kb.eid2 AND
+            r.doc_id = t1.doc_id AND
+            r.doc_id = t2.doc_id;
+  """
+  dependencies : ["ext_el_feature_coref", "ext_el_feature_extstr_title", 
+                  "ext_el_feature_extstr_organization", "ext_el_feature_extstr_location",
+                  "ext_el_feature_extstr_person", "ext_coref_candidate", "ext_coref_candidate",
+                  "ext_relation_mention_feature", "ext_relation_mention_feature_deppath", 
+                  "ext_mention", "ext_el_feature_alias_person",
+                  "ext_el_feature_alias_title", "ext_el_feature_alias_location",
+                  "ext_el_feature_alias_organization"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** mention-level positive training examples, e.g.:
+
+    TODO
+
+**Output:** rows in `relation_mentions` table, e.g.:
+
+    TODO
 
 
-You are now ready to run the KBP application.
+### Training data: negative examples
+
+We use distant supervision to generate negative examples. The initla database contains a table called `incompatible_relations`: this table contains, for each of the relations r we want to extract, a relation that is incompatible with r. For example, for the relation `LOCATION_of_birth`, an incompatible relation would be `LOCATION_of_death`, since the same text patterns that would be indicative of the `LOCATION_of_birth` relation would not be indicative of the `LOCATION_of_death` relation. More concretely, for a given positive training example (entity1, relation1, entity2), a negative example would be (entity1, relation2, entity2) where relation2 is incompatible with relation1. Note that since the table `relation_mentions` currently only contains the positive mention-level examples we generated in the above extractor, we can use that table directly to generate the negative examples by simply replacing the relations with incompatible relations. Also note that since we are adding negative examples we insert False into the `is_correct` column of the `relation_mentions` table.
+
+This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_relation_mention_negative {
+  sql: """
+    INSERT INTO relation_mentions (doc_id, mid1, mid2, word1, word2, rel, is_correct)
+      SELECT DISTINCT t0.doc_id,
+                      t0.mid1,
+                      t0.mid2,
+                      t0.word1,
+                      t0.word2,
+                      t1.type2,
+                      False
+      FROM relation_mentions t0,
+           incompatible_relations t1
+      WHERE t0.rel = t1.type1 AND
+            t0.is_correct = True AND
+            t0.rel <> t1.type2;
+  """
+  dependencies : ["ext_relation_mention_positive"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** mention-level negative training examples, e.g.:
+
+    TODO
+
+**Output:** rows in `relation_mentions` table, e.g.:
+
+    TODO
+
+
+## Generating relation mentions
+
+As the final extractor, we genereate the non-example relation mentions that we want to run inference on. Each of these relation mentions will have NULL in the `is_correct` column, meaning that DeepDive will treat it as a random variable and will perform inference on its value. Since we have already generated the `relation_mention_features` table, we can simply use that, along with the `relation_types` table, to get the appropriately-typed relation mentions.
+
+This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_relation_mention {
+  sql: """
+    INSERT INTO relation_mentions (doc_id, mid1, mid2, word1, word2, rel, is_correct)
+      SELECT DISTINCT t1.doc_id,
+                      t1.mid1,
+                      t1.mid2,
+                      t1.word1,
+                      t1.word2,
+                      t0.rel,
+                      NULL::boolean
+      FROM relation_types t0,
+           relation_mention_features t1
+      WHERE t0.type1 = t1.type1 AND
+            t0.type2 = t1.type2;
+  """
+  dependencies : ["ext_relation_mention_positive", "ext_relation_mention_negative"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** mention-level negative training examples, e.g.:
+
+    TODO
+
+**Output:** rows in `relation_mentions` table, e.g.:
+
+    TODO
+
+Now that we have written our extractors, it is time to write the inference rules.
+
+<a id="writing_inference_rules" href="#"> </a>
+## Writing inference rules
+
+Now we need to tell DeepDive how to generate a factor graph to perform probabilistic inference. We want to predict the `is_correct` column of the `relation_mentions` table based on the features we have extracted, by assigning each feature a weight that DeepDive will learn.
+
+This inference rule is defined in `application.conf` as follows:
+
+```bash
+relation_mention_lr {
+  input_query: """
+    SELECT t0.doc_id AS "distribute.key",
+           t0.id AS "relation_mentions.id",
+           t0.is_correct AS "relation_mentions.is_correct",
+           t0.rel || '_' || t1.feature AS "feature"
+    FROM relation_mentions t0,
+         relation_mention_features t1
+    WHERE t0.doc_id = t1.doc_id AND
+          t0.mid1 = t1.mid1 AND
+          t0.mid2 = t1.mid2;
+  """
+  function: "IsTrue(relation_mentions.is_correct)"
+  weight: "?(feature)"
+}
+```
+
+This rule generates a model similar to a logistic regression classifier. For each row in the input query we are adding a factor that connects to the `relation_mentions.is_correct` variable with a different weight for each feature name.
+
+After loading the data and writing the extractors and inference rules, you are now ready to run the KBP application.
 
 <a id="running" href="#"> </a>
-
 ## Running KBP application
 
 Make sure you are in the kbp directory. To run the application, type in:
@@ -1022,7 +1166,6 @@ To see some example results, type in:
 
 
 <a id="debugging_extractors" href="#"> </a>
-
 ## Debugging extractors
 
 It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
@@ -1046,7 +1189,6 @@ The code for `ext_mention_debug` is commented out in `application.conf`; similar
 
 
 <a id="evaluating" href="#"> </a>
-
 ## Evaluating the results
 
 The KBP application contains a scorer for the TAC KBP slot filling task. The example system will not achieve a high score on the task because our sample of 70805 sentences is only 0.2% of the full corpus.
