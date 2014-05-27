@@ -1028,7 +1028,7 @@ ext_relation_mention_negative {
 
                   doc_id              |                   mid1                   |                   mid2                   |     word1      |   word2   |       type2        | bool 
     ----------------------------------+------------------------------------------+------------------------------------------+----------------+-----------+--------------------+------
-     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:age | f
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:age            | f
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:cause_of_death | f
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:children       | f
 
@@ -1062,7 +1062,7 @@ ext_relation_mention {
 **Query result:** non-training relation mentions, e.g.:
 
                   doc_id              |                    mid1                    |                    mid2                    |  word1  |   word2    |              rel              | bool 
-    ----------------------------------+--------------------------------------------+--------------------------------------------+---------+------------+------------------------------+------
+    ----------------------------------+--------------------------------------------+--------------------------------------------+---------+------------+-------------------------------+------
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1015_1025 | defense | washington | org:LOCATION_of_headquarters | 
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1065_1072 | defense | tuesday    | org:founded                  | 
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1135_1139 | defense | iran       | org:LOCATION_of_headquarters |
