@@ -6,7 +6,7 @@ KBP
 ====
 
 In this document we will build an application for the slot filling (relation extraction) task of the 
-[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves a winning F1 score of ___ on the KBP task.
+[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves an F1 score of 37 on the KBP task.
 
 <a id="overview" href="#"> </a>
 ## Application overview
@@ -252,15 +252,19 @@ ext_mention {
 }
 ```
 
+Note that `my_array_to_string` is a function defined in `schema.sql` and is a simple modification of the default PSQL `array_to_string` function: in addition to the array and delimiter arguments, the function also accepts a string with which NULL values in the array will be replaced. Here we wish to replace the NULL elements in the arrays with the word 'NULL'.
+
 The input query simply selects the appropriate columns from the sentence table and converts the columns that contain arrays to strings (since TSV extractors take in strings as input).
 
 **Input:** sentences along with NER tags. Specically, each line in the input to this extractor UDF is a row in the `sentence` table in TSV format, e.g.:
 
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_55 Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~is~^~a~^~natural~^~conservative~^~but~^~his~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrasts~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~. PERSON~^~O~^~O~^~O~^~COUNTRY~^~O~^~ORGANIZATION~^~ORGANIZATION~^~ORGANIZATION~^~ORGANIZATION~^~O~^~O~^~O~^~O~^~IDEOLOGY~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~TITLE~^~PERSON~^~PERSON~^~O   497~^~505~^~507~^~512~^~515~^~519~^~522~^~530~^~539~^~548~^~555~^~557~^~560~^~562~^~570~^~583~^~587~^~591~^~600~^~604~^~615~^~626~^~635~^~645~^~653~^~658~^~662~^~667~^~676~^~685~^~688~^~698~^~706~^~717   505~^~506~^~511~^~514~^~519~^~521~^~529~^~538~^~547~^~555~^~556~^~559~^~561~^~569~^~582~^~586~^~590~^~599~^~603~^~614~^~625~^~634~^~644~^~652~^~657~^~661~^~666~^~675~^~684~^~687~^~697~^~705~^~717~^~718
 
 **Output:** rows in `mentions` table, e.g.:
-
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_55 larijani    PERSON  0   1
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_515_519    AFP_ENG_20070405.0102.LDC2009T13_55 iran    LOCATION    4   5
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_55 supreme national security council   ORGANIZATION    6   10
+    ...
 
 The script `$APP_HOME/udf/ext_mention.py` is the UDF for this extractor, which can be written as follows:
 
@@ -429,11 +433,13 @@ ext_relation_mention_feature_wordseq {
 
 **Input:** the list of mentions in a sentence, with information about each mention and about the whole sentence. Specically, each line in the input to this extractor UDF is a row of the input query in TSV format, e.g.:
 
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_55 Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~be~^~a~^~natural~^~conservative~^~but~^~he~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrast~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~.   Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~is~^~a~^~natural~^~conservative~^~but~^~his~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrasts~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~. AFP_ENG_20070405.0102.LDC2009T13_515_519~^~AFP_ENG_20070405.0102.LDC2009T13_522_555~^~AFP_ENG_20070405.0102.LDC2009T13_570_582~^~AFP_ENG_20070405.0102.LDC2009T13_698_717~^~AFP_ENG_20070405.0102.LDC2009T13_688_697~^~AFP_ENG_20070405.0102.LDC2009T13_497_505 iran~^~supreme national security council~^~conservative~^~mahmoud ahmadinejad~^~president~^~larijani    LOCATION~^~ORGANIZATION~^~IDEOLOGY~^~PERSON~^~TITLE~^~PERSON    4~^~6~^~14~^~31~^~30~^~0    5~^~10~^~15~^~33~^~31~^~1
 
 **Output:** rows in `relation_mention_features` table, e.g.:
 
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_515_519    larijani    iran    PERSON  LOCATION    WORDSEQ_,_head_of
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_522_555    larijani    supreme national security council   PERSON  ORGANIZATION    WORDSEQ_,_head_of_iran_'s
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_570_582    larijani    conservative    PERSON  IDEOLOGY    WORDSEQ_,_head_of_iran_'s_supreme_national_security_council_,_be_a_natural
 
 The script `$APP_HOME/udf/ext_relation_mention_features_wordseq.py` is the UDF for this extractor, which can be written as follows:
 
@@ -559,11 +565,13 @@ ext_relation_mention_feature_deppath {
 
 **Input:** the list of mentions in a sentence, with information about each mention and about the whole sentence. Specically, each line in the input to this extractor UDF is a row of the input query in TSV format, e.g.:
 
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_55 Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~be~^~a~^~natural~^~conservative~^~but~^~he~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrast~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~.   10 amod 7~^~10 amod 8~^~10 nn 9~^~10 poss 5~^~18 conj_and 21~^~21 advmod 20~^~15 cop 12~^~15 det 13~^~15 conj_but 23~^~15 nsubj 1~^~15 amod 14~^~29 advmod 27~^~29 det 26~^~29 amod 28~^~29 prep_of 33~^~23 prep_with 29~^~23 nsubj 22~^~23 advmod 24~^~22 amod 18~^~22 amod 21~^~22 poss 17~^~33 nn 31~^~33 nn 32~^~1 appos 3~^~3 prep_of 10   Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~is~^~a~^~natural~^~conservative~^~but~^~his~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrasts~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~. AFP_ENG_20070405.0102.LDC2009T13_515_519~^~AFP_ENG_20070405.0102.LDC2009T13_522_555~^~AFP_ENG_20070405.0102.LDC2009T13_570_582~^~AFP_ENG_20070405.0102.LDC2009T13_698_717~^~AFP_ENG_20070405.0102.LDC2009T13_688_697~^~AFP_ENG_20070405.0102.LDC2009T13_497_505 iran~^~supreme national security council~^~conservative~^~mahmoud ahmadinejad~^~president~^~larijani    LOCATION~^~ORGANIZATION~^~IDEOLOGY~^~PERSON~^~TITLE~^~PERSON    4~^~6~^~14~^~31~^~30~^~0    5~^~10~^~15~^~33~^~31~^~1
 
 **Output:** rows in `relation_mention_features` table, e.g.:
 
-    TODO
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_570_582    supreme national security council   conservative    --prep_of->head--appos->larijani--nsubj->|SAMEPATH  ORGANIZATION    IDEOLOGY
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_698_717    supreme national security council   mahmoud ahmadinejad --prep_of->head--appos->larijani--nsubj->|conservative|<-conj_but--contrast<-prep_with--rhetoric<-prep_of-- ORGANIZATION    PERSON
+    AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_688_697    supreme national security council   president   --prep_of->head--appos->larijani--nsubj->|conservative|<-conj_but--contrast<-prep_with--rhetoric<-prep_of--ahmadinejad<-nn--    ORGANIZATION    TITLE
 
 The script `$APP_HOME/udf/ext_relation_mention_features_deppath.py` is the UDF for this extractor, which can be written as follows:
 
@@ -788,20 +796,20 @@ ext_coref_candidate {
             m0.type = 'PERSON' AND
             m1.type = 'PERSON' AND
             m1.word LIKE m0.word || ' %' AND
-            m0.mention_id <> m1.mention_id ;
+            m0.mention_id <> m1.mention_id;
   """
   style: "sql_extractor"
   dependencies : ["ext_mention"]
 }
 ```
 
-**Input:** mention pairs that are candidates for coreference, e.g.:
+**Query result:** mention pairs that are candidates for coreference, e.g.:
 
-    TODO
-
-**Output:** the `coref_candidates` table, e.g.:
-
-    TODO
+                  doc_id              |                    mid1                    |                    mid2                    
+    ----------------------------------+--------------------------------------------+--------------------------------------------
+     eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_8102_8107        | eng-WL-11-174595-12967958_8222_8234
+     eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_8522_8527        | eng-WL-11-174595-12967958_8038_8050
+     eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_9014_9019        | eng-WL-11-174595-12967958_8038_8050
 
 This is an SQL extractor, which means that it has no UDF but simply executes a query.
 
@@ -844,13 +852,13 @@ ext_el_feature_extstr_location {
 }
 ```
 
-**Input:** (entity, mention) pairs of the *LOCATION* type whose text matches exactly, e.g.:
+**Query result:** (entity, mention) pairs of the *LOCATION* type whose text matches exactly, e.g.:
 
-    TODO
-
-**Output:** rows in the `el_features_highprec` table, e.g.:
-
-    TODO
+                  doc_id              |                 mention_id                 |    fid    | feature 
+    ----------------------------------+--------------------------------------------+-----------+---------
+     NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_9731_9738 | m.0496l40 | es
+     NYT_ENG_20070518.0055.LDC2009T13 | NYT_ENG_20070518.0055.LDC2009T13_8917_8924 | m.0496l40 | es
+     APW_ENG_20081023.0044.LDC2009T13 | APW_ENG_20081023.0044.LDC2009T13_3225_3231 | m.0489wbm | es
 
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
@@ -928,13 +936,13 @@ ext_el_feature_coref {
 }
 ```
 
-**Input:** (entity, mention) pairs that emit the 'co' feature, e.g.:
+**Query result:** (entity, mention) pairs that emit the 'co' feature, e.g.:
 
-    TODO
-
-**Output:** rows in `el_features_highprec` table, e.g.:
-
-    TODO
+                  doc_id              |                     mid1                     |   fid    | text 
+    ----------------------------------+----------------------------------------------+----------+------
+     eng-WL-11-174594-12961460        | eng-WL-11-174594-12961460_1352_1359          | m.015f7  | co
+     eng-WL-11-174594-12961460        | eng-WL-11-174594-12961460_1022_1029          | m.015f7  | co
+     NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_10815_10818 | m.0dm0bw | co
 
 ## Adding training data
 
@@ -979,13 +987,18 @@ ext_relation_mention_positive {
 }
 ```
 
-**Input:** mention-level positive training examples, e.g.:
-
-    TODO
-
-**Output:** rows in `relation_mentions` table, e.g.:
-
-    TODO
+**Query result:** mention-level positive training examples, e.g.:
+    
+                  doc_id              |                    mid1                    |                    mid2                    |               word1             
+  |   word2   |             rel              | bool 
+    ----------------------------------+--------------------------------------------+--------------------------------------------+---------------------------------
+    --+-----------+------------------------------+------
+     AFP_ENG_20050523.0367.LDC2007T07 | AFP_ENG_20050523.0367.LDC2007T07_1389_1411 | AFP_ENG_20050523.0367.LDC2007T07_1232_1241 | ayatollah ali khamenei          
+      | president | per:title                    | t
+     AFP_ENG_20050523.0367.LDC2007T07 | AFP_ENG_20050523.0367.LDC2007T07_954_970   | AFP_ENG_20050523.0367.LDC2007T07_944_953   | mohammad khatami                
+      | president | per:title                    | t
+     AFP_ENG_20050609.0290.LDC2007T07 | AFP_ENG_20050609.0290.LDC2007T07_845_878   | AFP_ENG_20050609.0290.LDC2007T07_838_842   | supreme national security counci
+    l | iran      | org:LOCATION_of_headquarters | t
 
 ### Training data: negative examples
 
@@ -1015,13 +1028,17 @@ ext_relation_mention_negative {
 }
 ```
 
-**Input:** mention-level negative training examples, e.g.:
-
-    TODO
-
-**Output:** rows in `relation_mentions` table, e.g.:
-
-    TODO
+**Query result:** mention-level negative training examples, e.g.:
+                  doc_id              |                   mid1                   |                   mid2                   |     word1      |   word2   |       t
+ype2        | bool 
+    ----------------------------------+------------------------------------------+------------------------------------------+----------------+-----------+--------
+    ------------+------
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:age
+                | f
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:cau
+    se_of_death | f
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_600_614 | AFP_ENG_20020206.0348.LDC2007T07_590_599 | george w. bush | president | per:chi
+    ldren       | f
 
 ## Generating relation mentions
 
@@ -1050,13 +1067,18 @@ ext_relation_mention {
 }
 ```
 
-**Input:** mention-level negative training examples, e.g.:
+**Query result:** non-training relation mentions, e.g.:
 
-    TODO
-
-**Output:** rows in `relation_mentions` table, e.g.:
-
-    TODO
+                  doc_id              |                    mid1                    |                    mid2                    |  word1  |   word2    |          
+   rel              | bool 
+    ----------------------------------+--------------------------------------------+--------------------------------------------+---------+------------+----------
+    --------------------+------
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1015_1025 | defense | washington | org:LOCAT
+    ION_of_headquarters | 
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1065_1072 | defense | tuesday    | org:found
+    ed                  | 
+     AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1135_1139 | defense | iran       | org:LOCAT
+    ION_of_headquarters | 
 
 Now that we have written our extractors, it is time to write the inference rules.
 
