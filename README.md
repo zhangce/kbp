@@ -6,7 +6,7 @@ KBP
 ====
 
 In this document we will build an application for the slot filling (relation extraction) task of the 
-[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall of the results (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves a winning score of ___ on the KBP task.
+[TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall of the results (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves a winning F1 score of ___ on the KBP task.
 
 <a id="overview" href="#"> </a>
 
@@ -212,12 +212,15 @@ The extractors are created in `application.conf`. Several extractors in this exa
 
 As stated in the [overview](#overview), the extractors perform the following high-level tasks:
 
-- Extract entity mentions from sentences
-- Extract lexical and syntactic features for relation mentions (entity mentions pairs in the same sentence)
-- Extract candidates for coreferent mentions
-- Extract features for entity linking (linking Freebase entities to mentions in text)
-- Generate positive and negative training examples for relation mentions
-- Extract the relation mentions
+- Extract entity mentions from sentences.
+- Extract lexical and syntactic features for relation mentions (entity mentions pairs in the same sentence).
+- Extract candidates for coreferent mentions.
+- Extract features for entity linking (linking Freebase entities to mentions in text). These features include:
+  - Exact string match
+  - Freebase alias
+  - Coreference
+- Generate positive and negative training examples for relation mentions.
+- Extract the relation mentions.
 
 We will walk through each of the extractors in more detail below.
 
@@ -436,11 +439,11 @@ ext_relation_mention_feature_wordseq {
 }
 ```
 
-**Input:** the list of mentions in a sentence. Specically, each line in the input to this extractor UDF is a row of the input query in TSV format, e.g.:
+**Input:** the list of mentions in a sentence, with information about each mention and about the whole sentence. Specically, each line in the input to this extractor UDF is a row of the input query in TSV format, e.g.:
 
     TODO
 
-**Output:** rows in `mentions` table, e.g.:
+**Output:** rows in `relation_mention_features` table, e.g.:
 
     TODO
 
@@ -536,32 +539,416 @@ for row in sys.stdin:
 
 ### Relation mention feature: dependency path
 
-TODO
+In addition to the word sequence feature, we can extract a lexical feature: the dependency path between the mentions in the sentence. This extractor will make use the *dep_graph* column of the `sentence` table, which gives a list of dependency edges in the sentence's dependency tree. The ddlib library included in the `$APP_HOME/udf/lib` directory provides some utilities for making the parsing of the dependency tree easier.
+
+This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_relation_mention_feature_deppath {
+  input: """
+    SELECT s.doc_id AS doc_id,
+           s.sentence_id AS sentence_id,
+           array_to_string(max(s.lemma), '~^~') AS lemma,
+           replace(array_to_string(max(s.dep_graph), '~^~'), E'\t', ' ') AS dep_graph,
+           array_to_string(max(s.words), '~^~') AS words,
+           array_to_string(array_accum(m.mention_id), '~^~') AS mention_ids,
+           array_to_string(array_accum(m.word), '~^~') AS mention_words,
+           array_to_string(array_accum(m.type), '~^~') AS types,
+           array_to_string(array_accum(m.start_pos), '~^~') AS starts,
+           array_to_string(array_accum(m.end_pos), '~^~') AS ends
+    FROM sentence s,
+         mentions m
+    WHERE s.doc_id = m.doc_id AND
+          s.sentence_id = m.sentence_id
+    GROUP BY s.doc_id,
+             s.sentence_id
+    """
+  output_relation: "relation_mention_features"
+  udf: ${APP_HOME}"/udf/ext_relation_mention_features_deppath.py"
+  style: "tsv_extractor"
+  dependencies: ["ext_cleanup", "ext_mention"]
+}
+```
+
+**Input:** the list of mentions in a sentence, with information about each mention and about the whole sentence. Specically, each line in the input to this extractor UDF is a row of the input query in TSV format, e.g.:
+
+    TODO
+
+**Output:** rows in `relation_mention_features` table, e.g.:
+
+    TODO
+
+The script `$APP_HOME/udf/ext_relation_mention_features_deppath.py` is the UDF for this extractor, which can be written as follows:
+
+```python
+#! /usr/bin/env python
+
+"""
+Extractor for relation mention features.
+
+Outputs 2 feature for each relation mention:
+  - the dependency path between the mentions
+  - the presence of the words "wife", "widow", or "husband" along the dependency path
+    (this should help with the spouse relation)
+
+(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
+
+Input query:
+
+        SELECT s.doc_id AS doc_id,
+               s.sentence_id AS sentence_id,
+               array_to_string(max(s.lemma), '~^~') AS lemma,
+               array_to_string(max(s.dep_graph), '~^~') AS dep_graph,
+               array_to_string(max(s.words), '~^~') AS words,
+               array_to_string(array_accum(m.mention_id), '~^~') AS mention_ids,
+               array_to_string(array_accum(m.word), '~^~') AS mention_words,
+               array_to_string(array_accum(m.type), '~^~') AS types,
+               array_to_string(array_accum(m.start_pos), '~^~') AS starts,
+               array_to_string(array_accum(m.end_pos), '~^~') AS ends
+        FROM sentence s,
+             mentions m
+        WHERE s.doc_id = m.doc_id AND
+              s.sentence_id = m.sentence_id
+        GROUP BY s.doc_id,
+                 s.sentence_id
+"""
+
+import sys, json
+from lib import dd as ddlib
+
+# the delimiter used to separate columns in the input
+ARR_DELIM = '~^~'
 
 
-<a id="debugging_extractors" href="#"> </a>
+def dep_format_parser(dep_edge_str):
+  """
+  Given a string representing a dependency edge, return a tuple of
+     (parent_index, edge_label, child_index).
 
-## Debugging extractors
+  Args: dep_edge_str - a string representation of an edge in the dependency tree
+             (e.g. "31 prep_of 33")
+  Returns: tuple of (integer, string, integer) (e.g. (30, "prep_of", 32))
+  """
+  parent, label, child = dep_edge_str.split()
+  return (int(parent) - 1, label, int(child) - 1) # input edge used 1-based indexing       
 
-It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
 
-For example, consider a scenario where we want to debug the entity mention extractor, `ext_mention`. We can first run `ext_mention_debug` to produce a sample TSV file, `udf/sample_data/ext_mention_sample_data.tsv`.
+for row in sys.stdin:
+  # row is a string where the columns are separated by tabs
+  (doc_id, sentence_id, lemma_str, dep_graph_str, words_str, mention_ids_str, \
+    mention_words_str, types_str, starts_str, ends_str) = row.strip().split('\t')
 
-Refer to [DeepDive's pipeline functionality](http://deepdive.stanford.edu/doc/pipelines.html) to see how to run the system with only a particular extractor. We can specify something like the following in `application.conf`:
+  # skip sentences with empty dependency graphs
+  if dep_graph_str == "":
+    continue
 
-    pipeline.run: "debug_mention_ext"
-    pipeline.pipelines.debug_mention_ext: ["ext_mention_debug"]
+  lemma = lemma_str.split(ARR_DELIM)
+  dep_graph = dep_graph_str.split(ARR_DELIM)
+  words = words_str.split(ARR_DELIM)
+  mention_ids = mention_ids_str.split(ARR_DELIM)
+  mention_words = mention_words_str.split(ARR_DELIM)
+  types = types_str.split(ARR_DELIM)
+  starts = starts_str.split(ARR_DELIM)
+  ends = ends_str.split(ARR_DELIM)
 
-After running run.sh, this file can then be piped into the extractor we wish to debug, `udf/ext_mention.py`:
+  # create a list of mentions
+  mentions = zip(mention_ids, mention_words, types, starts, ends)
+  mentions = map(lambda x: {"mention_id" : x[0], "word" : x[1], "type" : x[2], "start" : int(x[3]), "end" : int(x[4])}, mentions)
 
-    >> cat $APP_HOME/udf/sample_data/ext_mention_sample_data.tsv | python $APP_HOME/udf/ext_mention.py
+  # don't output features for sentences that are too long
+  if len(mentions) > 20 or len(lemma) > 100:
+    continue
 
-This process allows for interactive debugging of the extractors.
+  # get a list of Word objects
+  obj = {}
+  obj['lemma'] = lemma
+  obj['words'] = words
+  obj['dep_graph'] = dep_graph
+  word_obj_list = ddlib.unpack_words(obj, lemma='lemma', words='words', dep_graph='dep_graph', \
+    dep_graph_parser=dep_format_parser)
 
-Note that if you change the inut SQL query to an extractor, you will also need to change it in the debug version of that extractor.
+  # at this point we have a list of the mentions in this sentence
 
-The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.
+  # go through all pairs of mentions
+  for m1 in mentions:
+    # make sure that the first mention is a PER or ORG
+    if m1["type"] not in ["PERSON", "ORGANIZATION"]:
+      continue
 
+    for m2 in mentions:
+      if m1["mention_id"] == m2["mention_id"]:
+        continue
+
+      # the features we will extract from this mention pair
+      features = []
+
+      # get the list of edges that constitute the dependency path between the mentions
+      edges = ddlib.dep_path_between_words(word_obj_list, m1["end"] - 1, m2["end"] - 1)
+
+      if len(edges) > 0:
+        num_roots = 0 # the number of root nodes
+        num_left = 0 # the number of edges to the left of the root
+        num_right = 0 # the number of edges to the right of the root
+        left_path = "" # the dependency path to the left of the root
+        right_path = "" # the dependency path to the right of the root
+
+        # find the index of the switch from up to down
+        switch_direction_index = -1
+        for i in range(len(edges)):
+          if not edges[i].is_bottom_up:
+            switch_direction_index = i
+            break
+        
+        # iterate through the edge list
+        for i in range(len(edges)):
+          curr_edge = edges[i]
+
+          # count the number of roots; if there are more than 1 root then our dependency
+          # path is disconnected
+          if curr_edge.label == 'ROOT':
+            num_roots += 1
+
+          # going from the left to the root
+          if curr_edge.is_bottom_up:
+            num_left += 1
+
+            # if this is the edge pointing to the root (word2 is the root)
+            if i == switch_direction_index - 1:
+              left_path = left_path + ("--" + curr_edge.label + "->")
+              root = curr_edge.word2.lemma.lower()
+
+            # this edge does not point to the root
+            else:
+              # if we are at the last edge, don't include the word (part of the mention)
+              if i == len(edges) - 1:
+                left_path = left_path + ("--" + curr_edge.label + "->")
+              else:
+                left_path = left_path + ("--" + curr_edge.label + "->" + curr_edge.word2.lemma.lower())
+          
+          # going from the root to the right
+          else:
+            num_right += 1
+
+            # the first edge to the right of the root
+            if i == switch_direction_index:
+              right_path = right_path + "<-" + curr_edge.label + "--"
+
+            # this edge does not point from the root
+            else:
+              # if we are at the first edge, don't include the word (part of the mention)
+              if i == 0:
+                right_path = right_path + ("<-" + curr_edge.label + "--")
+              else:
+                # word1 is the parent for right to left
+                right_path = right_path + (curr_edge.word1.lemma.lower() + "<-" + curr_edge.label + "--")
+        
+        # if the root is at the end or at the beginning (direction was all up or all down)
+        if num_right == 0:
+          root = "|SAMEPATH"
+        elif num_left == 0:
+          root = "SAMEPATH|"
+
+        # if the edges have a disconnect (if there is more than 1 root)
+        elif num_roots > 1:
+          root = "|NONEROOT|"
+
+        # this is a normal tree with a connected root in the middle
+        else:
+          root = "|" + root + "|"
+
+        # reconstruct the dependency path
+        path = left_path + root + right_path
+
+        # doc_id, mid1, mid2, word1, word2, feature, type1, type2
+        features.append([doc_id, m1["mention_id"], m2["mention_id"], m1["word"], m2["word"], path, m1["type"], m2["type"]])
+
+        if 'wife' in path or 'widow' in path or 'husband' in path:
+          feature = 'LEN_%d_wife/widow/husband' % (num_left + num_right)
+          
+          # doc_id, mid1, mid2, word1, word2, feature, type1, type2
+          features.append([doc_id, m1["mention_id"], m2["mention_id"], m1["word"], m2["word"], feature, m1["type"], m2["type"]])
+
+      # output all the features for this mention pair
+      for feat in features:
+        # make sure each of the strings we will output is encoded as utf-8
+        map(lambda x: x.decode('utf-8', 'ignore'), feat)
+
+        print "\t".join(feat)
+```
+
+## Coreferent mentions
+
+Once we have identified the mentions in text, we can find the candidate set of coreferent mentions. A pair of mentions is coreferent if the following conditions hold:
+- both mentions appear in the same document
+- both are of the *PERSON* type
+- one begins with the text of the other.
+
+This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_coref_candidate {
+  sql: """
+    DROP TABLE IF EXISTS coref_candidates;
+
+    CREATE TABLE coref_candidates AS
+      SELECT DISTINCT ON (m0.word, m1.word, m0.mention_id)
+           m0.doc_id,
+           m0.mention_id AS mid1,
+           m1.mention_id AS mid2
+      FROM mentions m0,
+           mentions m1
+      WHERE m0.doc_id = m1.doc_id AND
+            m0.type = 'PERSON' AND
+            m1.type = 'PERSON' AND
+            m1.word LIKE m0.word || ' %' AND
+            m0.mention_id <> m1.mention_id ;
+  """
+  style: "sql_extractor"
+  dependencies : ["ext_mention"]
+}
+```
+
+**Input:** mention pairs that are candidates for coreference, e.g.:
+
+    TODO
+
+**Output:** the `coref_candidates` table, e.g.:
+
+    TODO
+
+This is an SQL extractor, which means that it has no UDF but simply executes a query.
+
+
+## Entity linking: exact string match between entities and mentions
+
+To identify which mentions in text refer to which entities, we need to perform entity linking. This involves extracting specific features from (entity, mention) pairs. This extractor extracts the "exact string match" feature between (entity, mention) pairs (this feature is denoted as 'es'). An (entity, mention) pair emits the 'es' feature if the following conditions hold:
+- the entity and mention have corresponding types
+- the entity and mention strings match exactly.
+
+In the case of the *PERSON* entities and mentions, we have an additonal condition:
+- the mention string contains a space.
+
+There are several *exact-string-match* extractors for different types of entities and mentions:
+- `ext_el_feature_extstr_person` considers mentions of the *PERSON* type and entities of the *people.person* type
+- `ext_el_feature_extstr_location` considers mentions of the *LOCATION* type and entities of the *location.location* type
+- `ext_el_feature_extstr_organization` considers mentions of the *ORGANIZATION* type and entities of the *organization.organization* type
+- `ext_el_feature_extstr_title` considers mentions of the *TITLE* type and entities of the *business.job_title* type
+- `ext_el_feature_extstr_title2` considers mentions of the *TITLE* type and entities of the *government.government_office_or_title* type
+
+Each of these extractors is defined in `application.conf` using code nearly identical to the following, with some potential differences in the WHERE condition depending on the types. This example is for entities and mentions of the *LOCATION* type:
+
+```bash
+ext_el_feature_extstr_location {
+  sql: """
+    INSERT INTO el_features_highprec
+      SELECT m.doc_id,
+             m.mention_id,
+             e.fid,
+             'es'::TEXT AS feature
+      FROM   mentions m,
+             entities e
+      WHERE  m.type = 'LOCATION' AND
+             e.type = 'location.location' AND
+             m.word = e.text;
+  """
+  dependencies : ["ext_el_feature_extstr_person"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** (entity, mention) pairs of the *LOCATION* type whose text matches exactly, e.g.:
+
+    TODO
+
+**Output:** rows in the `el_features_highprec` table, e.g.:
+
+    TODO
+
+All of these are SQL extractors, which means that they have no UDF but simply execute a query.
+
+
+## Entity linking: exact string match between Freebase aliases for entities and mentions
+
+In addition to exact string match between entities and mention, we consider in the entity linking step (entity, mention) pairs where the entity has a Freebase alias whose text is an exact match for the mention text. The extractors are similar to the exact string match above, but each input query now also performs a join on the `fbalias` table. The extractors extract the "alias" feature between (entity, mention) pairs (this feature is denoted as 'al'). An (entity, mention) pair emits the 'al' feature if the following conditions hold:
+- the entity and mention have corresponding types
+- the entity has a Freebase alias
+- the entity's alias and mention text match exactly.
+
+In the case of the *PERSON* entities and mentions, we have an additonal condition:
+- the mention string contains a space.
+
+There are several *alias* extractors for different types of entities and mentions:
+- `ext_el_feature_alias_person` considers mentions of the *PERSON* type and entities of the *people.person* type
+- `ext_el_feature_alias_location` considers mentions of the *LOCATION* type and entities of the *location.location* type
+- `ext_el_feature_alias_organization` considers mentions of the *ORGANIZATION* type and entities of the *organization.organization* type
+- `ext_el_feature_alias_title` considers mentions of the *TITLE* type and entities of the *business.job_title* type
+
+Each of these extractors is defined in `application.conf` using code nearly identical to the following, with some potential differences in the WHERE condition depending on the types. This example is for entities and mentions of the *LOCATION* type:
+
+```bash
+ext_el_feature_alias_location {
+  sql: """
+    INSERT INTO el_features_highprec
+      SELECT m.doc_id,
+             m.mention_id,
+             e.fid,
+             'al'::TEXT AS feature
+      FROM   mentions m,
+             entities e,
+             fbalias f
+      WHERE  m.type = 'LOCATION' AND
+             e.type = 'location.location' AND
+             m.word = f.slot AND
+             e.fid = f.fid;
+  """
+  dependencies : ["ext_el_feature_extstr_person"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** (entity, mention) pairs of the *LOCATION* type such that the entity has a Freebase alias whose text matches exactly the text of the mention, e.g.:
+
+    TODO
+
+**Output:** rows in the `el_features_highprec` table, e.g.:
+
+    TODO
+
+All of these are SQL extractors, which means that they have no UDF but simply execute a query.
+
+
+## Entity linking: coreferent mentions
+
+We also consider in the entity linking step (entity, mention) pairs where the mention is coreferent with another mention m' such that the (entity, m') pair emitted the "exact string match" feature. In other words, given the entity and mention pair (e1, m1) for which we have the entity linking feature 'es', and mention m2 that is coreferent with m1, choose (e1, m2) to have the coreference entity linking feature, denoted as 'co'.
+
+This extractor is defined in `application.conf` using the following code:
+
+```bash
+ext_el_feature_coref {
+  sql: """
+    INSERT INTO el_features_highprec
+      SELECT c.doc_id,
+             c.mid1,
+             el.fid,
+             'co'::TEXT
+      FROM   coref_candidates c,
+             el_features_highprec el
+      WHERE  el.feature = 'es' AND
+             c.mid2 = el.mention_id AND
+             c.doc_id = el.doc_id;
+  """
+  dependencies : ["ext_coref_candidate", "ext_el_feature_extstr_person"]
+  style: "sql_extractor"
+}
+```
+
+**Input:** (entity, mention) pairs that emit the 'co' feature, e.g.:
+
+    TODO
+
+**Output:** rows in `el_features_highprec` table, e.g.:
+
+    TODO
 
 
 
@@ -632,6 +1019,30 @@ To see some example results, type in:
      simon cowell            | judge      | per:title
      castro                  | elder      | per:title
     (10 rows)
+
+
+<a id="debugging_extractors" href="#"> </a>
+
+## Debugging extractors
+
+It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
+
+For example, consider a scenario where we want to debug the entity mention extractor, `ext_mention`. We can first run `ext_mention_debug` to produce a sample TSV file, `udf/sample_data/ext_mention_sample_data.tsv`.
+
+Refer to [DeepDive's pipeline functionality](http://deepdive.stanford.edu/doc/pipelines.html) to see how to run the system with only a particular extractor. We can specify something like the following in `application.conf`:
+
+    pipeline.run: "debug_mention_ext"
+    pipeline.pipelines.debug_mention_ext: ["ext_mention_debug"]
+
+After running run.sh, this file can then be piped into the extractor we wish to debug, `udf/ext_mention.py`:
+
+    >> cat $APP_HOME/udf/sample_data/ext_mention_sample_data.tsv | python $APP_HOME/udf/ext_mention.py
+
+This process allows for interactive debugging of the extractors.
+
+Note that if you change the inut SQL query to an extractor, you will also need to change it in the debug version of that extractor.
+
+The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.
 
 
 <a id="evaluating" href="#"> </a>
