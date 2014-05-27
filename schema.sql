@@ -42,8 +42,8 @@ CREATE TABLE mentions (
 -- relation mentions
 DROP TABLE IF EXISTS relation_mentions CASCADE;
 CREATE TABLE relation_mentions (
-	id bigint,
 	doc_id text,
+	id bigint,
 	mid1 text,
 	mid2 text,
 	word1 text,
