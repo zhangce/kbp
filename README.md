@@ -261,6 +261,7 @@ The input query simply selects the appropriate columns from the sentence table a
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_55 Larijani~^~,~^~head~^~of~^~Iran~^~'s~^~supreme~^~national~^~security~^~council~^~,~^~is~^~a~^~natural~^~conservative~^~but~^~his~^~moderate~^~and~^~distinctly~^~undramatic~^~language~^~contrasts~^~starkly~^~with~^~the~^~more~^~volatile~^~rhetoric~^~of~^~President~^~Mahmoud~^~Ahmadinejad~^~. PERSON~^~O~^~O~^~O~^~COUNTRY~^~O~^~ORGANIZATION~^~ORGANIZATION~^~ORGANIZATION~^~ORGANIZATION~^~O~^~O~^~O~^~O~^~IDEOLOGY~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~O~^~TITLE~^~PERSON~^~PERSON~^~O   497~^~505~^~507~^~512~^~515~^~519~^~522~^~530~^~539~^~548~^~555~^~557~^~560~^~562~^~570~^~583~^~587~^~591~^~600~^~604~^~615~^~626~^~635~^~645~^~653~^~658~^~662~^~667~^~676~^~685~^~688~^~698~^~706~^~717   505~^~506~^~511~^~514~^~519~^~521~^~529~^~538~^~547~^~555~^~556~^~559~^~561~^~569~^~582~^~586~^~590~^~599~^~603~^~614~^~625~^~634~^~644~^~652~^~657~^~661~^~666~^~675~^~684~^~687~^~697~^~705~^~717~^~718
 
 **Output:** rows in `mentions` table, e.g.:
+
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_55 larijani    PERSON  0   1
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_515_519    AFP_ENG_20070405.0102.LDC2009T13_55 iran    LOCATION    4   5
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_55 supreme national security council   ORGANIZATION    6   10
@@ -901,13 +902,13 @@ ext_el_feature_alias_location {
 }
 ```
 
-**Input:** (entity, mention) pairs of the *LOCATION* type such that the entity has a Freebase alias whose text matches exactly the text of the mention, e.g.:
-
-    TODO
-
-**Output:** rows in the `el_features_highprec` table, e.g.:
-
-    TODO
+**Query result:** (entity, mention) pairs of the *LOCATION* type such that the entity has a Freebase alias whose text matches exactly the text of the mention, e.g.:
+    
+                  doc_id              |                mention_id                |    fid    | feature 
+    ----------------------------------+------------------------------------------+-----------+---------
+     eng-WL-11-174587-12962117        | eng-WL-11-174587-12962117_805_813        | m.0ldgnrl | al
+     eng-WL-11-174595-12968511        | eng-WL-11-174595-12968511_11478_11486    | m.04drmh  | al
+     APW_ENG_20080907.0722.LDC2009T13 | APW_ENG_20080907.0722.LDC2009T13_619_627 | m.04drmh  | al
 
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
@@ -1029,6 +1030,7 @@ ext_relation_mention_negative {
 ```
 
 **Query result:** mention-level negative training examples, e.g.:
+
                   doc_id              |                   mid1                   |                   mid2                   |     word1      |   word2   |       t
 ype2        | bool 
     ----------------------------------+------------------------------------------+------------------------------------------+----------------+-----------+--------
