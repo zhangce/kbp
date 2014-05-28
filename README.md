@@ -2,7 +2,7 @@
 layout: default
 ---
 
-KBP
+Knowledge Base Population (KBP)
 ====
 
 In this document we will build an application for the slot filling (relation extraction) task of the 
@@ -11,20 +11,29 @@ In this document we will build an application for the slot filling (relation ext
 <a id="overview" href="#"> </a>
 ## Application overview
 
-This tutorial will walk you through building a full DeepDive application that extracts the TAC KBP relationships between mentions of entities in raw text. We use news articles and blogs as our input data and want to extract all pairs of entities that participate in the KBP relations (e.g. *Barack Obama* and *Michelle Obama* for the `spouse` relation).
+The application is an extension of the [mention-level extraction system](http://deepdive.stanford.edu/doc/walkthrough-mention.html), so please make sure you have gone through that part of the tutorial and have an understanding of how to do basic relation extraction in DeepDive. The main difference here is that there are more relationships to extract and more data. The current example is also a mention-level system, so the goal is, given the following input:
 
-The application is an extension of the [mention-level extraction system](http://deepdive.stanford.edu/doc/walkthrough-mention.html). The application performs the following high-level steps:
+- a set of sentences with NLP features
+- a set of Freebase entities
+- an entity-level training set of the form *(entity1, relation, entity2)*,
+
+to extract tuples of the form *(mention1, relation, mention2)*.
+
+This tutorial will walk you through building a full DeepDive application that extracts the TAC KBP relationships between mentions of entities in raw text. We use news articles and blogs as our input data and want to extract all pairs of entity mentions that participate in the KBP relations (e.g. *Barack Obama* and *Michelle Obama* for the `spouse` relation).
+
+The application performs the following high-level steps:
 
 1. Load data from provided database dump
-2. Extract entity mentions from sentences
-3. Extract lexical and syntactic features from relation mentions (entity mention pairs in the same sentence)
-4. Extract candidates for coreferent mentions
-5. Extract features for entity linking (linking Freebase entities to mentions in text)
-6. Generate positive and negative training examples for relation mentions
-7. Extract the relation mentions
-8. Generate a factor graph using inference rules
-9. Perform inference and learning
-10. Generate results
+2. Extract features. This step includes steps to:
+  - Extract entity mentions from sentences
+  - Extract lexical and syntactic features from relation mentions (entity mention pairs in the same sentence)
+  - Extract candidates for coreferent mentions
+  - Extract features for entity linking (linking Freebase entities to mentions in text)
+  - Generate positive and negative training examples for relation mentions
+  - Extract the relation mentions
+3. Generate a factor graph using inference rules
+4. Perform inference and learning
+5. Generate results
 
 For simplicity, we will start by loading a database dump that contains all of the tables necessary to run the system.
 
@@ -32,9 +41,9 @@ Let us now go through the steps to get the example KBP system up and running.
 
 ### Contents
 
-* [Installing DeepDive](#installing)
-* [Setting up KBP application](#setting_up)
-  - [Cloning the repository](#cloning)
+* [Installing DeepDive](#installing-deepdive)
+* [Setting up KBP application](#setting-up-kbp-application)
+  - [Cloning the repository](#cloning-the-repository)
   - [Connecting to the database](#connecting)
   - [Loading initial data](#loading)
 * [Writing extractors](#writing_extractors)
@@ -43,7 +52,6 @@ Let us now go through the steps to get the example KBP system up and running.
 * [Debugging extractors](#debugging_extractors)
 * [Evaluating the results](#evaluating)
 
-<a id="installing" href="#"> </a>
 ## Installing DeepDive
 
 This tutorial assumes a working installation of DeepDive.
@@ -52,10 +60,8 @@ Please go through the
 
 After following the walkthrough, your deepdive directory should contain a folder called "app", which should contain a folder called "spouse".
 
-<a id="setting_up" href="#"> </a>
 ## Setting up KBP application
 
-<a id="cloning" href="#"> </a>
 ### Cloning the repository
 
 Navigate to the folder "app" (same folder as you use in the walkthrough), 
