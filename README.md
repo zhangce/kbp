@@ -112,7 +112,7 @@ The initial database dump contains the following tables:
 - `sentence`: contains processed sentence data by an [NLP extractor](http://deepdive.stanford.edu/doc/walkthrough-extras.html#nlp_extractor). This table contains tokenized words, lemmatized words, POS tags, NER tags, dependency paths for each sentence. The table contains 70805 sentences, which is 0.2% of the full corpus for 2010.
 - `kb`: Contains tuples of the form (entity1, relation, entity2); this is the knowledge base used for distant supervision.
 - `entities`: A set of entities from Freebase.
-- `fbalias`: Freebase aliases for entities (a single entity can have several aliases).
+- `fbalias`: Freebase aliases for entities. An alias is an alternate name for an entity; for example, William Henry Gates III is an alias for Bill Gates.
 - `relation_types`: The typed relations we care to extract.
 - `incompatible_relations`: Contains tuples of the form (relation1, relation2) where relation2 is incompatible with relation1. This is used to generate negative examples (given (e1, relation1, e2), (e1, relation2, e2) will be a negative example).
 - `ea`: Contains the ground truth for the evaluation; to be used for error analysis.
