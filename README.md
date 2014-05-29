@@ -34,7 +34,7 @@ The application performs the following high-level steps:
 4. Perform inference and learning
 5. Generate results
 
-Note that in this example we will refer to mention-level relation candidates and relation mentions.
+Note that in this example we will refer to mention-level relation candidates as relation mentions.
 
 For simplicity, we will start by loading a database dump that contains all of the tables necessary to run the system.
 
