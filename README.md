@@ -953,11 +953,11 @@ ext_el_feature_alias_location {
 
 Let's show the results with the mention and entity text for clarity:
 
-             doc_id               |               mention_id                 |   word   |     fid      | alias_text | feature 
-----------------------------------+------------------------------------------+----------+--------------+------------+---------
-    eng-WL-11-174587-12962117     |   eng-WL-11-174587-12962117_805_813      | the bank |  m.0ldgnrl   | the bank   | al
-    eng-WL-11-174595-12968511     |   eng-WL-11-174595-12968511_11478_11486  | montreal |  m.04drmh    | montreal   | al
- APW_ENG_20080907.0722.LDC2009T13 | APW_ENG_20080907.0722.LDC2009T13_619_627 | montreal |  m.04drmh    | montreal   | al
+                 doc_id               |               mention_id                 |   word   |     fid      | alias_text | feature 
+    ----------------------------------+------------------------------------------+----------+--------------+------------+---------
+        eng-WL-11-174587-12962117     |   eng-WL-11-174587-12962117_805_813      | the bank |  m.0ldgnrl   | the bank   | al
+        eng-WL-11-174595-12968511     |   eng-WL-11-174595-12968511_11478_11486  | montreal |  m.04drmh    | montreal   | al
+     APW_ENG_20080907.0722.LDC2009T13 | APW_ENG_20080907.0722.LDC2009T13_619_627 | montreal |  m.04drmh    | montreal   | al
 
 
 
@@ -1000,11 +1000,11 @@ ext_el_feature_coref {
 
 Let's show the results with the mention and entity text for clarity:
 
-             doc_id               |                     mid1                     |  word   |   fid    |  entity_text   | text 
----------------------------+-----------------------------------------------------+---------+----------+----------------+------
-    eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1352_1359      | britney | m.015f7  | britney spears | co
-    eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1022_1029      | britney | m.015f7  | britney spears | co
- NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_10815_10818 |   ann   | m.0dm0bw |  ann davies    | co
+                 doc_id               |                     mid1                     |  word   |   fid    |  entity_text   | text 
+    ---------------------------+-----------------------------------------------------+---------+----------+----------------+------
+        eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1352_1359      | britney | m.015f7  | britney spears | co
+        eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1022_1029      | britney | m.015f7  | britney spears | co
+     NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_10815_10818 |   ann   | m.0dm0bw |  ann davies    | co
 
 ## Adding training data
 
