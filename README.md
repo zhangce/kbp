@@ -8,7 +8,6 @@ Knowledge Base Population (KBP)
 In this document we will build an application for the slot filling (relation extraction) task of the 
 [TAC KBP competition](http://www.nist.gov/tac/2014/KBP/). This example uses a sample of the data for the 2010 task. Note that the data provided in this example application is only 0.2% of the original corpus so the recall (and thus the F1 score) will be low. However, using 100% of the 2010 corpus, this example system achieves an F1 score of 37 on the KBP task.
 
-<a id="overview" href="#"> </a>
 ## Application overview
 
 The application is an extension of the [mention-level extraction system](http://deepdive.stanford.edu/doc/walkthrough-mention.html), so please make sure you have gone through that part of the tutorial and have an understanding of how to do basic relation extraction in DeepDive. The main difference here is that there are more relationships to extract and more data. The current example is also a mention-level system, so the goal is, given the following input:
@@ -24,16 +23,18 @@ This tutorial will walk you through building a full DeepDive application that ex
 The application performs the following high-level steps:
 
 1. Load data from provided database dump
-2. Extract features. This step includes steps to:
+2. Extract features. This includes steps to:
   - Extract entity mentions from sentences
-  - Extract lexical and syntactic features from relation mentions (entity mention pairs in the same sentence)
+  - Extract lexical and syntactic features from mention-level relation candidates (entity mention pairs in the same sentence)
   - Extract candidates for coreferent mentions
   - Extract features for entity linking (linking Freebase entities to mentions in text)
-  - Generate positive and negative training examples for relation mentions
-  - Extract the relation mentions
+  - Generate positive and negative training examples for relation candidates
+  - Extract the non-example mention-level relation candidates
 3. Generate a factor graph using inference rules
 4. Perform inference and learning
 5. Generate results
+
+Note that in this example we will refer to mention-level relation candidates and relation mentions.
 
 For simplicity, we will start by loading a database dump that contains all of the tables necessary to run the system.
 
@@ -44,13 +45,13 @@ Let us now go through the steps to get the example KBP system up and running.
 * [Installing DeepDive](#installing-deepdive)
 * [Setting up KBP application](#setting-up-kbp-application)
   - [Cloning the repository](#cloning-the-repository)
-  - [Connecting to the database](#connecting)
-  - [Loading initial data](#loading)
-* [Writing extractors](#writing_extractors)
-* [Writing inference rules](#writing_inference_rules)
-* [Running KBP application](#running)
-* [Debugging extractors](#debugging_extractors)
-* [Evaluating the results](#evaluating)
+  - [Connecting to the database](#connecting-to-the-database)
+  - [Loading initial data](#loading-initial-data)
+* [Running KBP application](#running-kbp-application)
+* [Evaluating the results](#evaluating-the-results)
+* [Writing extractors](#writing-extractors)
+* [Debugging extractors](#debugging-extractors)
+* [Writing inference rules](#writing-inference-rules)
 
 ## Installing DeepDive
 
@@ -58,7 +59,7 @@ This tutorial assumes a working installation of DeepDive.
 Please go through the
 [example application walkthrough](http://deepdive.stanford.edu/doc/walkthrough.html) before proceeding.
 
-After following the walkthrough, your deepdive directory should contain a folder called "app", which should contain a folder called "spouse".
+After following the walkthrough, your "deepdive" directory should contain a folder called "app", which should contain a folder called "spouse".
 
 ## Setting up KBP application
 
@@ -69,22 +70,21 @@ clone this repository, and switch to the correct branch.
 
     >> git clone https://github.com/zhangce/kbp.git
     >> cd kbp
-    >> git checkout mike-tsv-extractors
+    >> git checkout mike-readme
 
 To validate this step, you should see:
 
     >> git branch
       master
       mike-ce-stringlib
-      mike-readme
-    * mike-tsv-extractors
+    * mike-readme
+      mike-tsv-extractors
     >> ls
     README.md           data            env_db.sh       run-evaluate.sh     schema.sql          udf
     application.conf    env.sh          evaluation      run.sh              setup_database.sh          		
 	
 From now on we will be working in the kbp directory.
 
-<a id="connecting" href="#"> </a>
 ### Connecting to the database
 
 Change the database settings in the file `env_db.sh`, whose original contents is:
@@ -99,18 +99,17 @@ Change this file to point to your database.
 To validate this step, you should be able to connect to the database by running the following commands:
     
     >> source env_db.sh
-    >> psql -h $PGHOST -p $PGPORT -l
+    >> psql -l
                                             List of databases
               Name           |  Owner   | Encoding | Collate | Ctype |   Access privileges   
     -------------------------+----------+----------+---------+-------+-----------------------
      template0               | postgres | UTF8     | C       | C     | =c/postgres          +
     ...
-    
-<a id="loading" href="#"> </a>
+
 ### Loading initial data
 
 The initial database dump contains the following tables:
-- `sentence`: contains processed sentence data by an [NLP extractor](walkthrough-extras.html#nlp_extractor). This table contains tokenized words, lemmatized words, POS tags, NER tags, dependency paths for each sentence. The table contains 70805 sentences, which is 0.2% of the full corpus for 2010.
+- `sentence`: contains processed sentence data by an [NLP extractor](http://deepdive.stanford.edu/doc/walkthrough-extras.html#nlp_extractor). This table contains tokenized words, lemmatized words, POS tags, NER tags, dependency paths for each sentence. The table contains 70805 sentences, which is 0.2% of the full corpus for 2010.
 - `kb`: Contains tuples of the form (entity1, relation, entity2); this is the knowledge base used for distant supervision.
 - `entities`: A set of entities from Freebase.
 - `fbalias`: Freebase aliases for entities (a single entity can have several aliases).
@@ -133,7 +132,7 @@ You may see some errors, but don't worry, they can be ignored. Validate that thi
 
     >> source env_db.sh
 
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "\d"
+    >> psql $DBNAME -c "\d"
                        List of relations
      Schema |           Name            | Type  |  Owner   
     --------+---------------------------+-------+----------
@@ -148,60 +147,141 @@ You may see some errors, but don't worry, they can be ignored. Validate that thi
      public | relation_types            | table | msushkov
      public | sentence                  | table | czhang
     (10 rows)
+
+For a more detailed verification of `setup_database.sh` (recommended), please see [verifying setup_database.sh](doc/verify_setup_database.md).
+
+Now that we have loaded all the necessary data, we can run the application.
+
+## Running KBP application
+
+Make sure you are in the kbp directory. To run the application, type in:
+
+    >> time sh run.sh
+    ...
+    04:26:09 [profiler] INFO  --------------------------------------------------
+    04:26:09 [profiler] INFO  Summary Report
+    04:26:09 [profiler] INFO  --------------------------------------------------
+    04:26:09 [profiler] INFO  ext_cleanup SUCCESS [251 ms]
+    04:26:09 [profiler] INFO  ext_mention SUCCESS [16997 ms]
+    04:26:09 [profiler] INFO  ext_coref_candidate SUCCESS [2399 ms]
+    04:26:09 [profiler] INFO  ext_relation_mention_feature_deppath SUCCESS [34105 ms]
+    04:26:09 [profiler] INFO  ext_relation_mention_feature SUCCESS [63297 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_extstr_person SUCCESS [67563 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_extstr_organization SUCCESS [2258 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_extstr_title SUCCESS [3781 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_extstr_title2 SUCCESS [5060 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_extstr_location SUCCESS [8089 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_alias_person SUCCESS [23261 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_coref SUCCESS [24390 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_alias_title SUCCESS [32075 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_alias_location SUCCESS [44660 ms]
+    04:26:09 [profiler] INFO  ext_el_feature_alias_organization SUCCESS [48183 ms]
+    04:26:09 [profiler] INFO  ext_relation_mention_positive SUCCESS [33341 ms]
+    04:26:09 [profiler] INFO  ext_relation_mention_negative SUCCESS [189 ms]
+    04:26:09 [profiler] INFO  ext_relation_mention SUCCESS [3606 ms]
+    04:26:09 [profiler] INFO  inference_grounding SUCCESS [16311 ms]
+    04:26:09 [profiler] INFO  inference SUCCESS [47145 ms]
+    04:26:09 [profiler] INFO  calibration plot written to /Users/czhang/Desktop/dd2/deepdive/out/2014-05-22T042159/calibration/relation_mentions.is_correct.png [0 ms]
+    04:26:09 [profiler] INFO  calibration SUCCESS [14562 ms]
+    04:26:09 [profiler] INFO  --------------------------------------------------
+    04:26:09 [taskManager] INFO  Completed task_id=report with Success(Success(()))
+    04:26:09 [profiler] DEBUG ending report_id=report
+    04:26:09 [taskManager] INFO  1/1 tasks eligible.
+    04:26:09 [taskManager] INFO  Tasks not_eligible: Set()
+    04:26:09 [taskManager] DEBUG Sending task_id=shutdown to Actor[akka://deepdive/user/taskManager#1841581299]
+    04:26:09 [profiler] DEBUG starting report_id=shutdown
+    04:26:09 [EventStream] DEBUG shutting down: StandardOutLogger started
+    Not interrupting system thread Thread[process reaper,10,system]
+    [success] Total time: 251 s, completed May 22, 2014 4:26:09 AM
         
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT doc_id, text FROM sentence LIMIT 1"
-                  doc_id              |                             text                             
-    ----------------------------------+--------------------------------------------------------------
-     AFP_ENG_20070104.0483.LDC2009T13 | "When you see the people's spirit, you know this is going to+
-                                      | continue. 
-    (1 row)
-        
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM kb LIMIT 1"
-       eid1   |          rel          |  eid2   
-    ----------+-----------------------+---------
-     m.01f0tg | per:LOCATION_of_birth | m.0fhp9
-    (1 row)
-        
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM entities LIMIT 1"
-        fid    |    text     |     type      
-    -----------+-------------+---------------
-     m.026tjxz | andrés mata | people.person
-    (1 row)
-        
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM fbalias LIMIT 1"
-        fid    |        type        |    slot    
-    -----------+--------------------+------------
-     m.03hzmy2 | common.topic.alias | kato, gary
-    (1 row)
+    real  4m15.001s
+    user  2m30.093s
+    sys 0m26.283s
 
-     >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM relation_types LIMIT 1"
-     type1  | type2  |       rel        | is_functional 
-    --------+--------+------------------+---------------
-     PERSON | PERSON | per:parents      | f
-    (1 row)
+To see some example results, type in:
 
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM incompatible_relations LIMIT 1"
-             type1         |           type2           
-    -----------------------+---------------------------
-     per:date_of_death     | per:date_of_birth
-    (1 row)
+    >> source env_db.sh
+    >> psql $DBNAME -c "select word1, word2, rel from relation_mentions_is_correct_inference where rel = 'per:title' order by expectation desc limit 10;"
+              word1          |   word2    |    rel    
+    -------------------------+------------+-----------
+     jose eduardo dos santos | president  | per:title
+     kevin stallings         | coach      | per:title
+     anthony hamilton        | father     | per:title
+     karyn bosnak            | author     | per:title
+     mahmoud ahmadinejad     | president  | per:title
+     fulgencio batista       | dictator   | per:title
+     raul castro             | president  | per:title
+     dean spiliotes          | consultant | per:title
+     simon cowell            | judge      | per:title
+     castro                  | elder      | per:title
+    (10 rows)
 
-To check the schema of any of these tables, run the following:
+These results are the highest-confidence (mention1, relation, mention2) tuples produced by the system where the relation is 'per:title'. We can see that the system seems to do well at identifying people's titles.
 
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "\d entities"
-      Table "public.entities"
-     Column | Type | Modifiers 
-    --------+------+-----------
-     fid    | text | 
-     text   | text | 
-     type   | text | 
+## Evaluating the results
 
-<a id="writing_extractors" href="#"> </a>
+The KBP application contains a scorer for the TAC KBP slot filling task. The example system will not achieve a high score on the task because our sample of 70805 sentences is only 0.2% of the full corpus.
+
+To get the score, type in:
+
+    >> sh run-evaluate.sh
+    ...
+                                  2010 scores:
+    [STDOUT]                      Recall: 5.0 / 1040.0 = 0.004807692307692308
+    [STDOUT]                      Precision: 5.0 / 8.0 = 0.625
+    [STDOUT]                      F1: 0.009541984732824428
+                              } << Scoring System [0.389 seconds]
+                              Running SFScore2010 {
+    [WARN SFScore]              official scorer exited with non-zero exit code
+                              } [0.138 seconds]
+                              Generating PR Curve {
+    [Eval]                      generating PR curve with 8 points
+    [Eval]                      P/R curve data generated in file: /tmp/stanford1.curve
+                              } 
+                              Score {
+    [Result]                    |           Precision: 62.500
+    [Result]                    |              Recall: 00.481
+    [Result]                    |                  F1: 00.954
+    [Result]                    |
+    [Result]                    |   Optimal Precision: �
+    [Result]                    |      Optimal Recall: �
+    [Result]                    |          Optimal F1: -∞
+    [Result]                    |
+    [Result]                    | Area Under PR Curve: 0.0
+                              } 
+                            } << Evaluating Test Entities [0.922 seconds]
+    [MAIN]                  work dir: /tmp
+                          } << main [2.405 seconds]
+
+In this log, the precision is 62.5 (human agreement rate is around 70), and recall is low
+since our sample is 0.2% of the full corpus.
+
+For the ease of error analysis, we also include a relational-form of the ground truth. To
+see the ground truth, type in:
+
+    >> source env_db.sh 
+    >> psql $DBNAME -c "SELECT * FROM ea limit 10;"
+     query |                  sub                   |           rel            |           obj            
+    -------+----------------------------------------+--------------------------+--------------------------
+     SF208 | kendra wilkinson                       | per:age                  | 23
+     SF209 | chelsea library                        | org:alternate_names      | chelsea district library
+     SF212 | chad white                             | per:age                  | 22
+     SF211 | paul kim                               | per:age                  | 24
+     SF210 | crown prosecution service              | org:alternate_names      | cps
+     SF262 | noordhoff craniofacial foundation      | org:alternate_names      | ncf
+     SF263 | national christmas tree association    | org:city_of_headquarters | chesterfield
+     SF260 | north phoenix baptist church           | org:city_of_headquarters | phoenix
+     SF228 | professional rodeo cowboys association | org:alternate_names      | prca
+     SF229 | new hampshire institute of politics    | org:city_of_headquarters | manchester
+    (10 rows)
+
+Now that we have set up the application and have run it end to end, let's look at the code.
+
 ## Writing extractors
 
 The extractors are created in `application.conf`. Several extractors in this example are [TSV extractors](http://deepdive.stanford.edu/doc/extractors.html#tsv_extractor), and the UDFs for them are contained in `APP_HOME/udf`. However, the majority are [SQL extractors](http://deepdive.stanford.edu/doc/extractors.html#sql_extractor) that do not have UDFs.
 
-As stated in the [overview](#overview), the extractors perform the following high-level tasks:
+As stated in the [overview](#application-overview), the extractors perform the following high-level tasks:
 
 - Extract entity mentions from sentences.
 - Extract lexical and syntactic features for relation mentions (entity mentions pairs in the same sentence).
@@ -236,8 +316,6 @@ ext_cleanup {
 
 We first need to identify the entity mentions in the text. Given a set of sentences, the entity mention extractor will populate the `mentions` table using NER tags from the `sentence` table, generated by the NLP toolkit.
 
-A mention can consist of multiple words (e.g. Barack Obama); the way we can identify these is if all of these words have the same NER tag. This extractor goes through all the words in the sentence and outputs as a mention the consecutive words that have the same NER tag.
-
 This extractor is defined in `application.conf` using the following code:
 
 ```bash
@@ -260,7 +338,7 @@ ext_mention {
 
 Note that `my_array_to_string` is a function defined in `schema.sql` and is a simple modification of the default PSQL `array_to_string` function: in addition to the array and delimiter arguments, the function also accepts a string with which NULL values in the array will be replaced. Here we wish to replace the NULL elements in the arrays with the word 'NULL'.
 
-The input query simply selects the appropriate columns from the sentence table and converts the columns that contain arrays to strings (since TSV extractors take in strings as input).
+The input query simply selects the appropriate columns from the sentence table and converts to strings the columns that contain arrays (since TSV extractors take in strings as input).
 
 **Input:** sentences along with NER tags. Specically, each line in the input to this extractor UDF is a row in the `sentence` table in TSV format, e.g.:
 
@@ -273,28 +351,12 @@ The input query simply selects the appropriate columns from the sentence table a
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_55 supreme national security council   ORGANIZATION    6   10
     ...
 
-The script `$APP_HOME/udf/ext_mention.py` is the UDF for this extractor, which can be written as follows:
+A mention can consist of multiple words (e.g. Barack Obama); the way we can identify these is if all of these words have the same NER tag. This extractor goes through all the words in the sentence and outputs as a mention the consecutive words that have the same NER tag.
+
+The script `$APP_HOME/udf/ext_mention.py` is the UDF for this extractor:
 
 ```python
 #! /usr/bin/env python
-
-"""
-Extractor for entity mentions.
-
-A mention can consist of multiple words (e.g. Barack Obama); the way we can identify these is if all of these words have the same NER tag.
-
-This extractor goes through all the words in the sentence and outputs as a mention the consecutive words that have the same NER tag that is not in EXT_MENTION_IGNORE_TYPE.
-
-Input query:
-
-        SELECT doc_id,
-               sentence_id,
-               my_array_to_string(words, '~^~', 'NULL') AS words,
-               my_array_to_string(ner, '~^~', 'NULL') AS ner,
-               my_array_to_string(character_offset_begin, '~^~', 'NULL') AS character_offset_begin,
-               my_array_to_string(character_offset_end, '~^~', 'NULL') AS character_offset_end
-        FROM sentence
-"""
 
 import sys
 
@@ -402,9 +464,15 @@ for row in sys.stdin:
         print "\t".join(output)
 ```
 
-### Extracting features from relation mentions
+### Extracting features from mention-level relation candidates
 
-We will skip the relation mention generation step for now, and will go straight to extracting features form relation mentions (while generating the mentions in the process). The `relation_mention_features` table will be used later to generate the `relation_mentions` table.
+Now that we have extracted the entity mentions, we can find the mention-level relation candidates and extract features from them. This way the system will learn whether or not these candidates are actually valid instances a relation involving the mentions.
+
+We will extract 2 features:
+- The word sequence between the mentions
+- The dependency path between the mentions.
+
+Refer to http://www.stanford.edu/~jurafsky/mintz.pdf for a more detailed discussion on feature extraction.
 
 #### Relation mention feature: word sequence
 
@@ -448,35 +516,12 @@ ext_relation_mention_feature_wordseq {
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_522_555    larijani    supreme national security council   PERSON  ORGANIZATION    WORDSEQ_,_head_of_iran_'s
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_497_505    AFP_ENG_20070405.0102.LDC2009T13_570_582    larijani    conservative    PERSON  IDEOLOGY    WORDSEQ_,_head_of_iran_'s_supreme_national_security_council_,_be_a_natural
 
-The script `$APP_HOME/udf/ext_relation_mention_features_wordseq.py` is the UDF for this extractor, which can be written as follows:
+We will be using the `dd` library (located in `$APP_HOME/udf/lib`) in this extractor. In particular, we will make use of the object `Span` and the method `tokens_between_spans()`. `Span` represents the span of a particular mention (consecutive indices of words in a sentence). `Span` is simply a wrapper around a tuple of integers (begin_word_id, length) where begin_word_id is the position in the sentence of the first word of the mention and length is the number of words that the mention contains. `tokens_between_spans()` takes in an array of lemma and 2 `Span` objects each representing a mention, and returns a list of the lemma between the spans.
+
+The script `$APP_HOME/udf/ext_relation_mention_features_wordseq.py` is the UDF for this extractor:
 
 ```python
 #! /usr/bin/env python
-
-"""
-Extractor for the word sequence relation mention feature.
-
-Outputs 1 feature for each relation mention:
-  - the word sequence between the 2 mentions
-
-Input query:
-
-        SELECT s.doc_id AS doc_id,
-               s.sentence_id AS sentence_id,
-               max(s.lemma) AS lemma,
-               max(s.words) AS words,
-               array_accum(m.mention_id) AS mention_ids,
-               array_accum(m.word) AS mention_words,
-               array_accum(m.type) AS types,
-               array_accum(m.start_pos) AS starts,
-               array_accum(m.end_pos) AS ends
-        FROM sentence s,
-             mentions m
-        WHERE s.doc_id = m.doc_id AND
-              s.sentence_id = m.sentence_id
-        GROUP BY s.doc_id,
-                 s.sentence_id
-"""
 
 import sys
 from lib import dd as ddlib
@@ -539,7 +584,9 @@ for row in sys.stdin:
 
 #### Relation mention feature: dependency path
 
-In addition to the word sequence feature, we can extract a lexical feature: the dependency path between the mentions in the sentence. This extractor will make use the *dep_graph* column of the `sentence` table, which gives a list of dependency edges in the sentence's dependency tree. The ddlib library included in the `$APP_HOME/udf/lib` directory provides some utilities for making the parsing of the dependency tree easier.
+In addition to the word sequence feature, we can extract a lexical feature: the dependency path between the mentions in the sentence. This extractor will make use the *dep_graph* column of the `sentence` table, which gives a list of dependency edges in the sentence's dependency tree. The dd library included in the `$APP_HOME/udf/lib` directory provides some utilities for making the parsing of the dependency tree easier.
+
+Refer to http://www.stanford.edu/~jurafsky/mintz.pdf for more details about this feature.
 
 This extractor is defined in `application.conf` using the following code:
 
@@ -580,47 +627,20 @@ ext_relation_mention_feature_deppath {
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_698_717    supreme national security council   mahmoud ahmadinejad --prep_of->head--appos->larijani--nsubj->|conservative|<-conj_but--contrast<-prep_with--rhetoric<-prep_of-- ORGANIZATION    PERSON
     AFP_ENG_20070405.0102.LDC2009T13    AFP_ENG_20070405.0102.LDC2009T13_522_555    AFP_ENG_20070405.0102.LDC2009T13_688_697    supreme national security council   president   --prep_of->head--appos->larijani--nsubj->|conservative|<-conj_but--contrast<-prep_with--rhetoric<-prep_of--ahmadinejad<-nn--    ORGANIZATION    TITLE
 
-The script `$APP_HOME/udf/ext_relation_mention_features_deppath.py` is the UDF for this extractor, which can be written as follows:
+We will be using the `dd` library (located in `$APP_HOME/udf/lib`) in this extractor. In particular, we will make use of the objects `Word` and `DepEdge`, and the methods `unpack_words()` and `dep_path_between_words`. `Word` is a wrapper around a given word in a sentence, and contains the lemma, the POS and NER tags, as well as the dependency parent and the label for the dependency edge between the parent and the current word. `DepEdge` is a wrapper around a dependency edge and contains the 2 words, the edge label, and a flag indicating whether that edge is on the left or the right side of the root. `unpack_words()` takes in a dictionary that contains the lemma list, the word list, the dependency graph list output by the NLP parser, and a function that can convert a dependency graph edge (one of the items in the dep_graph list) to a tuple of (parent_index, labe, child_index). `unpack_words()` returns a list of `Word` objects. `dep_path_between_words()` takes in a list of `Word` objects (produced by `unpack_words()`) and 2 indices corresponding to words, returns a list of `DepEdge` objects corresponding to the dependency path between the 2 words. Our extractor uses the list of `DepEdge` objects to create a feature from the dependency path.
+
+In addition to the dependency path feature, this extractor also outputs a feature corresponding to the presence of the words "wife", "widow", or "husband" on the dependency path, which helps to identify the spouse relation.
+
+The script `$APP_HOME/udf/ext_relation_mention_features_deppath.py` is the UDF for this extractor:
 
 ```python
 #! /usr/bin/env python
-
-"""
-Extractor for relation mention features.
-
-Outputs 2 feature for each relation mention:
-  - the dependency path between the mentions
-  - the presence of the words "wife", "widow", or "husband" along the dependency path
-    (this should help with the spouse relation)
-
-(refer to http://www.stanford.edu/~jurafsky/mintz.pdf)
-
-Input query:
-
-        SELECT s.doc_id AS doc_id,
-               s.sentence_id AS sentence_id,
-               array_to_string(max(s.lemma), '~^~') AS lemma,
-               array_to_string(max(s.dep_graph), '~^~') AS dep_graph,
-               array_to_string(max(s.words), '~^~') AS words,
-               array_to_string(array_accum(m.mention_id), '~^~') AS mention_ids,
-               array_to_string(array_accum(m.word), '~^~') AS mention_words,
-               array_to_string(array_accum(m.type), '~^~') AS types,
-               array_to_string(array_accum(m.start_pos), '~^~') AS starts,
-               array_to_string(array_accum(m.end_pos), '~^~') AS ends
-        FROM sentence s,
-             mentions m
-        WHERE s.doc_id = m.doc_id AND
-              s.sentence_id = m.sentence_id
-        GROUP BY s.doc_id,
-                 s.sentence_id
-"""
 
 import sys, json
 from lib import dd as ddlib
 
 # the delimiter used to separate columns in the input
 ARR_DELIM = '~^~'
-
 
 def dep_format_parser(dep_edge_str):
   """
@@ -633,7 +653,6 @@ def dep_format_parser(dep_edge_str):
   """
   parent, label, child = dep_edge_str.split()
   return (int(parent) - 1, label, int(child) - 1) # input edge used 1-based indexing       
-
 
 for row in sys.stdin:
   # row is a string where the columns are separated by tabs
@@ -817,6 +836,9 @@ ext_coref_candidate {
      eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_8102_8107        | eng-WL-11-174595-12967958_8222_8234
      eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_8522_8527        | eng-WL-11-174595-12967958_8038_8050
      eng-WL-11-174595-12967958        | eng-WL-11-174595-12967958_9014_9019        | eng-WL-11-174595-12967958_8038_8050
+     
+Let's show the results with the mention and entity text for clarity:
+
 
 This is an SQL extractor, which means that it has no UDF but simply executes a query.
 
@@ -867,6 +889,9 @@ ext_el_feature_extstr_location {
      NYT_ENG_20070518.0055.LDC2009T13 | NYT_ENG_20070518.0055.LDC2009T13_8917_8924 | m.0496l40 | es
      APW_ENG_20081023.0044.LDC2009T13 | APW_ENG_20081023.0044.LDC2009T13_3225_3231 | m.0489wbm | es
 
+Let's show the results with the mention and entity text for clarity:
+
+
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
 ### Entity linking: exact string match between Freebase aliases for entities and mentions
@@ -916,6 +941,10 @@ ext_el_feature_alias_location {
      eng-WL-11-174595-12968511        | eng-WL-11-174595-12968511_11478_11486    | m.04drmh  | al
      APW_ENG_20080907.0722.LDC2009T13 | APW_ENG_20080907.0722.LDC2009T13_619_627 | m.04drmh  | al
 
+Let's show the results with the mention and entity text for clarity:
+
+
+
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
 ### Entity linking: coreferent mentions
@@ -951,9 +980,14 @@ ext_el_feature_coref {
      eng-WL-11-174594-12961460        | eng-WL-11-174594-12961460_1022_1029          | m.015f7  | co
      NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_10815_10818 | m.0dm0bw | co
 
+Let's show the results with the mention and entity text for clarity:
+
+
 ## Adding training data
 
-In order for the system to learn text patterns that indicate the presence of certain relationships between entities, we must provide training examples. 
+In order for the system to learn text patterns that indicate the presence of certain relationships between entities, we must provide training examples. We have an entity-level knowledge base of (entity1, relation, entity2) tuples (prodived in the database dump). Since our training data is entity-level but we need mention-level examples, we will use the distant supervision approach: for a given (entity1, relation, entity2) training example form the knowledge base, label all instances of (mention1, relation, mention2), where mention1 is a mention for the entity entity1 and mention2 is a mention for entity2, as being positive examples. To generate negative examples, use a list of incompatible relations.
+
+Refer to http://www.stanford.edu/~jurafsky/mintz.pdf for a discussion on distant supervision.
 
 ### Training data: positive examples
 
@@ -1004,7 +1038,17 @@ ext_relation_mention_positive {
 
 ### Training data: negative examples
 
-We use distant supervision to generate negative examples. The initla database contains a table called `incompatible_relations`: this table contains, for each of the relations r we want to extract, a relation that is incompatible with r. For example, for the relation `LOCATION_of_birth`, an incompatible relation would be `LOCATION_of_death`, since the same text patterns that would be indicative of the `LOCATION_of_birth` relation would not be indicative of the `LOCATION_of_death` relation. More concretely, for a given positive training example (entity1, relation1, entity2), a negative example would be (entity1, relation2, entity2) where relation2 is incompatible with relation1. Note that since the table `relation_mentions` currently only contains the positive mention-level examples we generated in the above extractor, we can use that table directly to generate the negative examples by simply replacing the relations with incompatible relations. Also note that since we are adding negative examples we insert False into the `is_correct` column of the `relation_mentions` table.
+Once we have constructed the positive examples, we can generate negative examples. The initial database contains a table called `incompatible_relations`: this table contains, for each of the relations r we want to extract, a relation that is incompatible with r. For example, for the relation `LOCATION_of_birth`, an incompatible relation would be `LOCATION_of_death`, since the same text patterns that would be indicative of the `LOCATION_of_birth` relation would not be indicative of the `LOCATION_of_death` relation.
+
+More concretely, for a given positive training example
+
+```(entity1, relation1, entity2),```
+
+a negative example would be
+
+```(entity1, relation2, entity2)```
+
+where relation2 is incompatible with relation1. Note that since the table `relation_mentions` currently only contains the positive mention-level examples we generated in the above extractor, we can use that table directly to generate the negative examples by simply replacing the relations with incompatible relations. Also note that since we are adding negative examples we insert False into the `is_correct` column of the `relation_mentions` table.
 
 This extractor is defined in `application.conf` using the following code:
 
@@ -1040,7 +1084,7 @@ ext_relation_mention_negative {
 
 ## Generating relation mentions
 
-As the final extractor, we genereate the non-example relation mentions that we want to run inference on. Each of these relation mentions will have NULL in the `is_correct` column, meaning that DeepDive will treat it as a random variable and will perform inference on its value. Since we have already generated the `relation_mention_features` table, we can simply use that, along with the `relation_types` table, to get the appropriately-typed relation mentions.
+As the final extractor, we generate the non-example relation mentions that we want to run inference on. Each of these relation mentions will have NULL in the `is_correct` column, meaning that DeepDive will treat it as a random variable and will perform inference on its value. Since we have already generated the `relation_mention_features` table, we can simply use that, along with the `relation_types` table, to get the appropriately-typed relation mentions.
 
 This extractor is defined in `application.conf` using the following code:
 
@@ -1073,9 +1117,31 @@ ext_relation_mention {
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1065_1072 | defense | tuesday    | org:founded                  | 
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1135_1139 | defense | iran       | org:LOCATION_of_headquarters |
 
-Now that we have written our extractors, it is time to write the inference rules.
+Now that we have written our extractors, let us see how we can debug them.
 
-<a id="writing_inference_rules" href="#"> </a>
+## Debugging extractors
+
+It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
+
+For example, consider a scenario where we want to debug the entity mention extractor, `ext_mention`. We can first run `ext_mention_debug` to produce a sample TSV file, `udf/sample_data/ext_mention_sample_data.tsv`.
+
+Refer to [DeepDive's pipeline functionality](http://deepdive.stanford.edu/doc/pipelines.html) to see how to run the system with only a particular extractor. We can specify something like the following in `application.conf`:
+
+    pipeline.run: "debug_mention_ext"
+    pipeline.pipelines.debug_mention_ext: ["ext_mention_debug"]
+
+After running run.sh, this file can then be piped into the extractor we wish to debug, `udf/ext_mention.py`:
+
+    >> cat $APP_HOME/udf/sample_data/ext_mention_sample_data.tsv | python $APP_HOME/udf/ext_mention.py
+
+This process allows for interactive debugging of the extractors.
+
+Note that if you change the inut SQL query to an extractor, you will also need to change it in the debug version of that extractor.
+
+The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.
+
+Now that we have our extractors, let's see how we can write the inference rules.
+
 ## Writing inference rules
 
 Now we need to tell DeepDive how to generate a factor graph to perform probabilistic inference. We want to predict the `is_correct` column of the `relation_mentions` table based on the features we have extracted, by assigning each feature a weight that DeepDive will learn.
@@ -1101,150 +1167,3 @@ relation_mention_lr {
 ```
 
 This rule generates a model similar to a logistic regression classifier. For each row in the input query we are adding a factor that connects to the `relation_mentions.is_correct` variable with a different weight for each feature name.
-
-After loading the data and writing the extractors and inference rules, you are now ready to run the KBP application.
-
-<a id="running" href="#"> </a>
-## Running KBP application
-
-Make sure you are in the kbp directory. To run the application, type in:
-
-    >> time sh run.sh
-    ...
-    04:26:09 [profiler] INFO  --------------------------------------------------
-    04:26:09 [profiler] INFO  Summary Report
-    04:26:09 [profiler] INFO  --------------------------------------------------
-    04:26:09 [profiler] INFO  ext_cleanup SUCCESS [251 ms]
-    04:26:09 [profiler] INFO  ext_mention SUCCESS [16997 ms]
-    04:26:09 [profiler] INFO  ext_coref_candidate SUCCESS [2399 ms]
-    04:26:09 [profiler] INFO  ext_relation_mention_feature_deppath SUCCESS [34105 ms]
-    04:26:09 [profiler] INFO  ext_relation_mention_feature SUCCESS [63297 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_extstr_person SUCCESS [67563 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_extstr_organization SUCCESS [2258 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_extstr_title SUCCESS [3781 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_extstr_title2 SUCCESS [5060 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_extstr_location SUCCESS [8089 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_alias_person SUCCESS [23261 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_coref SUCCESS [24390 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_alias_title SUCCESS [32075 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_alias_location SUCCESS [44660 ms]
-    04:26:09 [profiler] INFO  ext_el_feature_alias_organization SUCCESS [48183 ms]
-    04:26:09 [profiler] INFO  ext_relation_mention_positive SUCCESS [33341 ms]
-    04:26:09 [profiler] INFO  ext_relation_mention_negative SUCCESS [189 ms]
-    04:26:09 [profiler] INFO  ext_relation_mention SUCCESS [3606 ms]
-    04:26:09 [profiler] INFO  inference_grounding SUCCESS [16311 ms]
-    04:26:09 [profiler] INFO  inference SUCCESS [47145 ms]
-    04:26:09 [profiler] INFO  calibration plot written to /Users/czhang/Desktop/dd2/deepdive/out/2014-05-22T042159/calibration/relation_mentions.is_correct.png [0 ms]
-    04:26:09 [profiler] INFO  calibration SUCCESS [14562 ms]
-    04:26:09 [profiler] INFO  --------------------------------------------------
-    04:26:09 [taskManager] INFO  Completed task_id=report with Success(Success(()))
-    04:26:09 [profiler] DEBUG ending report_id=report
-    04:26:09 [taskManager] INFO  1/1 tasks eligible.
-    04:26:09 [taskManager] INFO  Tasks not_eligible: Set()
-    04:26:09 [taskManager] DEBUG Sending task_id=shutdown to Actor[akka://deepdive/user/taskManager#1841581299]
-    04:26:09 [profiler] DEBUG starting report_id=shutdown
-    04:26:09 [EventStream] DEBUG shutting down: StandardOutLogger started
-    Not interrupting system thread Thread[process reaper,10,system]
-    [success] Total time: 251 s, completed May 22, 2014 4:26:09 AM
-        
-    real	4m15.001s
-    user	2m30.093s
-    sys	0m26.283s
-
-To see some example results, type in:
-
-    >> source env_db.sh
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "select word1, word2, rel from relation_mentions_is_correct_inference where rel = 'per:title' order by expectation desc limit 10;"
-              word1          |   word2    |    rel    
-    -------------------------+------------+-----------
-     jose eduardo dos santos | president  | per:title
-     kevin stallings         | coach      | per:title
-     anthony hamilton        | father     | per:title
-     karyn bosnak            | author     | per:title
-     mahmoud ahmadinejad     | president  | per:title
-     fulgencio batista       | dictator   | per:title
-     raul castro             | president  | per:title
-     dean spiliotes          | consultant | per:title
-     simon cowell            | judge      | per:title
-     castro                  | elder      | per:title
-    (10 rows)
-
-<a id="debugging_extractors" href="#"> </a>
-## Debugging extractors
-
-It is useful to debug each extractor individually without running the DeepDive system every time. To make this easier, a general debug extractor is provided in `udf/util/dummy_extractor.py`. This extractor produces a file from the SQL input query to allow the user to directly pipe that file into the desired extractor. Run the dummy extractor once to produce the sample file, and then debug the extractor by looking at the output without running the DeepDive pipeline.
-
-For example, consider a scenario where we want to debug the entity mention extractor, `ext_mention`. We can first run `ext_mention_debug` to produce a sample TSV file, `udf/sample_data/ext_mention_sample_data.tsv`.
-
-Refer to [DeepDive's pipeline functionality](http://deepdive.stanford.edu/doc/pipelines.html) to see how to run the system with only a particular extractor. We can specify something like the following in `application.conf`:
-
-    pipeline.run: "debug_mention_ext"
-    pipeline.pipelines.debug_mention_ext: ["ext_mention_debug"]
-
-After running run.sh, this file can then be piped into the extractor we wish to debug, `udf/ext_mention.py`:
-
-    >> cat $APP_HOME/udf/sample_data/ext_mention_sample_data.tsv | python $APP_HOME/udf/ext_mention.py
-
-This process allows for interactive debugging of the extractors.
-
-Note that if you change the inut SQL query to an extractor, you will also need to change it in the debug version of that extractor.
-
-The code for `ext_mention_debug` is commented out in `application.conf`; similar code is also provided for `ext_relation_mention_feature_wordseq` and `ext_relation_mention_feature_deppath`.
-
-<a id="evaluating" href="#"> </a>
-## Evaluating the results
-
-The KBP application contains a scorer for the TAC KBP slot filling task. The example system will not achieve a high score on the task because our sample of 70805 sentences is only 0.2% of the full corpus.
-
-To get the score, type in:
-
-    >> sh run-evaluate.sh
-    ...
-                                	2010 scores:
-    [STDOUT]                    	Recall: 5.0 / 1040.0 = 0.004807692307692308
-    [STDOUT]                    	Precision: 5.0 / 8.0 = 0.625
-    [STDOUT]                    	F1: 0.009541984732824428
-                              } << Scoring System [0.389 seconds]
-                              Running SFScore2010 {
-    [WARN SFScore]              official scorer exited with non-zero exit code
-                              } [0.138 seconds]
-                              Generating PR Curve {
-    [Eval]                      generating PR curve with 8 points
-    [Eval]                      P/R curve data generated in file: /tmp/stanford1.curve
-                              } 
-                              Score {
-    [Result]                    |           Precision: 62.500
-    [Result]                    |              Recall: 00.481
-    [Result]                    |                  F1: 00.954
-    [Result]                    |
-    [Result]                    |   Optimal Precision: �
-    [Result]                    |      Optimal Recall: �
-    [Result]                    |          Optimal F1: -∞
-    [Result]                    |
-    [Result]                    | Area Under PR Curve: 0.0
-                              } 
-                            } << Evaluating Test Entities [0.922 seconds]
-    [MAIN]                  work dir: /tmp
-                          } << main [2.405 seconds]
-
-In this log, the precision is 62.5 (human agreement rate is around 70), and recall is low
-since our sample is 0.2% of the full corpus.
-
-For the ease of error analysis, we also include a relational-form of the ground truth. To
-see the ground truth, type in:
-
-    >> source env_db.sh 
-    >> psql -h $PGHOST -p $PGPORT $DBNAME -c "SELECT * FROM ea limit 10;"
-     query |                  sub                   |           rel            |           obj            
-    -------+----------------------------------------+--------------------------+--------------------------
-     SF208 | kendra wilkinson                       | per:age                  | 23
-     SF209 | chelsea library                        | org:alternate_names      | chelsea district library
-     SF212 | chad white                             | per:age                  | 22
-     SF211 | paul kim                               | per:age                  | 24
-     SF210 | crown prosecution service              | org:alternate_names      | cps
-     SF262 | noordhoff craniofacial foundation      | org:alternate_names      | ncf
-     SF263 | national christmas tree association    | org:city_of_headquarters | chesterfield
-     SF260 | north phoenix baptist church           | org:city_of_headquarters | phoenix
-     SF228 | professional rodeo cowboys association | org:alternate_names      | prca
-     SF229 | new hampshire institute of politics    | org:city_of_headquarters | manchester
-    (10 rows)
