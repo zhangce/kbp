@@ -839,6 +839,11 @@ ext_coref_candidate {
      
 Let's show the results with the mention and entity text for clarity:
 
+              doc_id           |                mid1                 | word1 |                mid2                 |    word2     
+    ---------------------------+-------------------------------------+-------+-------------------------------------+--------------
+     eng-WL-11-174595-12967958 | eng-WL-11-174595-12967958_8102_8107 | aaron | eng-WL-11-174595-12967958_8222_8234 | aaron carter
+     eng-WL-11-174595-12967958 | eng-WL-11-174595-12967958_8522_8527 | aaron | eng-WL-11-174595-12967958_8222_8234 | aaron carter
+     eng-WL-11-174595-12967958 | eng-WL-11-174595-12967958_9014_9019 | aaron | eng-WL-11-174595-12967958_8222_8234 | aaron carter
 
 This is an SQL extractor, which means that it has no UDF but simply executes a query.
 
@@ -891,6 +896,11 @@ ext_el_feature_extstr_location {
 
 Let's show the results with the mention and entity text for clarity:
 
+                  doc_id              |                 mention_id                 |  word   |    fid    | entity_text | feature 
+    ----------------------------------+--------------------------------------------+---------+-----------+-------------+---------
+     NYT_ENG_20070514.0225.LDC2009T13 | NYT_ENG_20070514.0225.LDC2009T13_3328_3335 | milford | m.0206xw3 | milford     | es
+     APW_ENG_20070317.0852.LDC2009T13 | APW_ENG_20070317.0852.LDC2009T13_857_864   | milford | m.0206xw3 | milford     | es
+     APW_ENG_20070317.0852.LDC2009T13 | APW_ENG_20070317.0852.LDC2009T13_269_276   | milford | m.0206xw3 | milford     | es
 
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
 
@@ -943,6 +953,12 @@ ext_el_feature_alias_location {
 
 Let's show the results with the mention and entity text for clarity:
 
+             doc_id               |               mention_id                 |   word   |     fid      | alias_text | feature 
+----------------------------------+------------------------------------------+----------+--------------+------------+---------
+    eng-WL-11-174587-12962117     |   eng-WL-11-174587-12962117_805_813      | the bank |  m.0ldgnrl   | the bank   | al
+    eng-WL-11-174595-12968511     |   eng-WL-11-174595-12968511_11478_11486  | montreal |  m.04drmh    | montreal   | al
+ APW_ENG_20080907.0722.LDC2009T13 | APW_ENG_20080907.0722.LDC2009T13_619_627 | montreal |  m.04drmh    | montreal   | al
+
 
 
 All of these are SQL extractors, which means that they have no UDF but simply execute a query.
@@ -962,7 +978,9 @@ ext_el_feature_coref {
              el.fid,
              'co'::TEXT
       FROM   coref_candidates c,
-             el_features_highprec el
+             el_features_highprec el,
+             entities e,
+             mentions m
       WHERE  el.feature = 'es' AND
              c.mid2 = el.mention_id AND
              c.doc_id = el.doc_id;
@@ -982,6 +1000,11 @@ ext_el_feature_coref {
 
 Let's show the results with the mention and entity text for clarity:
 
+             doc_id               |                     mid1                     |  word   |   fid    |  entity_text   | text 
+---------------------------+-----------------------------------------------------+---------+----------+----------------+------
+    eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1352_1359      | britney | m.015f7  | britney spears | co
+    eng-WL-11-174594-12961460     |     eng-WL-11-174594-12961460_1022_1029      | britney | m.015f7  | britney spears | co
+ NYT_ENG_20071001.0094.LDC2009T13 | NYT_ENG_20071001.0094.LDC2009T13_10815_10818 |   ann   | m.0dm0bw |  ann davies    | co
 
 ## Adding training data
 
@@ -1117,7 +1140,7 @@ ext_relation_mention {
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1065_1072 | defense | tuesday    | org:founded                  | 
      AFP_ENG_20020206.0348.LDC2007T07 | AFP_ENG_20020206.0348.LDC2007T07_1186_1193 | AFP_ENG_20020206.0348.LDC2007T07_1135_1139 | defense | iran       | org:LOCATION_of_headquarters |
 
-Now that we have written our extractors, let us see how we can debug them.
+Now that we have written our extractors, let us see how we can debug them without having to repeatedly run DeepDive.
 
 ## Debugging extractors
 
