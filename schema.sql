@@ -63,5 +63,5 @@ CREATE TABLE relation_mention_features (
 	word2 text,
 	type1 text,
 	type2 text,
-	features text
+	features text[]
 );
